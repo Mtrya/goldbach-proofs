@@ -4068,5 +4068,118 @@ lemma Q1_Hf_Qf_sixth_lt (n : ℕ) (hn : 2^63 ≤ n) :
 
 end OuterDisjoint
 
+/-! ### Outer spacing: fraction separation and pairwise-disjoint disks
+
+Distinct rationals with positive denominators are separated by `1/(qq')`, so the
+width-`H/(qn)` disks around Farey fractions with `q ≤ Q₁` are pairwise disjoint
+once `2·H·Q₁ < n`. -/
+
+section OuterDisk
+
+/-- Distinct rationals with positive denominators differ by at least `1/(qq')`. -/
+lemma one_div_mul_le_abs_sub_frac (q q' a a' : ℕ) (hq : 0 < q) (hq' : 0 < q')
+    (hne : (a:ℝ)/(q:ℝ) ≠ (a':ℝ)/(q':ℝ)) :
+    1 / ((q:ℝ) * (q':ℝ)) ≤ |(a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)| := by
+  have hq0 : (0:ℝ) < (q:ℝ) := by exact_mod_cast hq
+  have hq0' : (0:ℝ) < (q':ℝ) := by exact_mod_cast hq'
+  have hqz : (q:ℝ) ≠ 0 := by linarith
+  have hq'z : (q':ℝ) ≠ 0 := by linarith
+  have hqq : (0:ℝ) < (q:ℝ)*(q':ℝ) := mul_pos hq0 hq0'
+  have hne' : a * q' ≠ a' * q := by
+    intro heq
+    apply hne
+    have e1 : ((a:ℝ)/(q:ℝ)) * ((q:ℝ)*(q':ℝ)) = (a:ℝ)*(q':ℝ) := by
+      rw [← mul_assoc, div_mul_cancel₀ (a:ℝ) hqz]
+    have e2 : ((a':ℝ)/(q':ℝ)) * ((q:ℝ)*(q':ℝ)) = (a':ℝ)*(q:ℝ) := by
+      rw [mul_comm (q:ℝ) (q':ℝ), ← mul_assoc, div_mul_cancel₀ (a':ℝ) hq'z]
+    have hcross : ((a:ℝ)/(q:ℝ)) * ((q:ℝ)*(q':ℝ)) = ((a':ℝ)/(q':ℝ)) * ((q:ℝ)*(q':ℝ)) := by
+      rw [e1, e2]
+      exact_mod_cast heq
+    exact mul_right_cancel₀ hqq.ne' hcross
+  have hexpand : ((a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)) * ((q:ℝ)*(q':ℝ))
+      = (a:ℝ)*(q':ℝ) - (a':ℝ)*(q:ℝ) := by
+    field_simp
+  have hexpand2 : ((a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)) * ((q:ℝ)*(q':ℝ))
+      = (((a*q' : ℕ) : ℝ)) - (((a'*q : ℕ) : ℝ)) := by
+    rw [hexpand, ← Nat.cast_mul, ← Nat.cast_mul]
+  have hint : (((a*q' : ℕ) : ℝ)) - (((a'*q : ℕ) : ℝ))
+      = (((a*q' - a'*q : ℤ)) : ℝ) := by
+    push_cast
+    ring
+  have hk0 : ((a*q' - a'*q : ℤ) : ℤ) ≠ 0 := by
+    intro hzz
+    apply hne'
+    have h1 : (((a*q' : ℕ) : ℤ)) = (((a'*q : ℕ) : ℤ)) := by
+      push_cast
+      linarith
+    exact Int.natCast_inj.mp h1
+  have habs : |(a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)| * ((q:ℝ)*(q':ℝ))
+      = |(((a*q' - a'*q : ℤ)) : ℝ)| := by
+    rw [← hint, ← hexpand2, abs_mul, abs_of_pos hqq]
+  have h1le : (1:ℝ) ≤ |(((a*q' - a'*q : ℤ)) : ℝ)| := by
+    exact_mod_cast Int.one_le_abs hk0
+  rw [div_le_iff₀ hqq]
+  linarith
+
+/-- The full width-`H/(qn)` disk around the Farey fraction `a/q`. -/
+noncomputable def outerDisk (n q a : ℕ) : Set ℝ :=
+  {t : ℝ | |t - (a:ℝ)/(q:ℝ)| ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ))}
+
+/-- Full disks around distinct Farey fractions with `q, q' ≤ Q₁` are disjoint. -/
+lemma outerDisk_disjoint (n : ℕ) (hn : 2^63 ≤ n) (q q' a a' : ℕ)
+    (hq1 : 1 ≤ q) (hq1' : 1 ≤ q') (hqQ : q ≤ Q1f n) (hqQ' : q' ≤ Q1f n)
+    (hne : (a:ℝ)/(q:ℝ) ≠ (a':ℝ)/(q':ℝ)) :
+    Disjoint (outerDisk n q a) (outerDisk n q' a') := by
+  rw [Set.disjoint_left]
+  intro t ht1 ht2
+  simp only [outerDisk, Set.mem_ofPred_eq] at ht1 ht2
+  have hq0 : (0:ℝ) < (q:ℝ) := by exact_mod_cast hq1
+  have hq0' : (0:ℝ) < (q':ℝ) := by exact_mod_cast hq1'
+  have hqz : (q:ℝ) ≠ 0 := by linarith
+  have hq'z : (q':ℝ) ≠ 0 := by linarith
+  have hn0 : (0:ℝ) < (n:ℝ) := by
+    exact_mod_cast lt_of_lt_of_le (by norm_num : 0 < 2^63) hn
+  have hnz : (n:ℝ) ≠ 0 := by linarith
+  have hqn : (q:ℝ)*(n:ℝ) ≠ 0 := mul_ne_zero hqz hnz
+  have hq'n : (q':ℝ)*(n:ℝ) ≠ 0 := mul_ne_zero hq'z hnz
+  have hqq : (0:ℝ) < (q:ℝ)*(q':ℝ) := mul_pos hq0 hq0'
+  have hden : (0:ℝ) < (q:ℝ)*(q':ℝ)*(n:ℝ) := mul_pos hqq hn0
+  have htri : |(a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)|
+      ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + (Hf n:ℝ)/((q':ℝ)*(n:ℝ)) := by
+    have h1 : (a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)
+        = ((a:ℝ)/(q:ℝ) - t) + (t - (a':ℝ)/(q':ℝ)) := by linarith
+    rw [h1]
+    refine le_trans (abs_add_le _ _) ?_
+    rw [abs_sub_comm ((a:ℝ)/(q:ℝ)) t]
+    linarith
+  have hbound : (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + (Hf n:ℝ)/((q':ℝ)*(n:ℝ))
+      < 1/((q:ℝ)*(q':ℝ)) := by
+    have htwo := Hf_two_Q1_lt n hn
+    have hsum : ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + (Hf n:ℝ)/((q':ℝ)*(n:ℝ))) * ((q:ℝ)*(q':ℝ)*(n:ℝ))
+        = (Hf n:ℝ)*((q:ℝ)+(q':ℝ)) := by
+      field_simp
+      ring
+    have h2 : q + q' ≤ 2 * Q1f n := by omega
+    have h3 : ((q:ℝ)+(q':ℝ)) ≤ (2:ℝ)*(Q1f n:ℝ) := by exact_mod_cast h2
+    have hH0 : (0:ℝ) ≤ (Hf n:ℝ) := Nat.cast_nonneg _
+    have hlt : ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + (Hf n:ℝ)/((q':ℝ)*(n:ℝ))) * ((q:ℝ)*(q':ℝ)*(n:ℝ))
+        < (n:ℝ) := by
+      calc ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + (Hf n:ℝ)/((q':ℝ)*(n:ℝ))) * ((q:ℝ)*(q':ℝ)*(n:ℝ))
+          = (Hf n:ℝ)*((q:ℝ)+(q':ℝ)) := hsum
+        _ ≤ (Hf n:ℝ)*((2:ℝ)*(Q1f n:ℝ)) := mul_le_mul_of_nonneg_left h3 hH0
+        _ = (2:ℝ)*(Hf n:ℝ)*(Q1f n:ℝ) := by ring
+        _ < (n:ℝ) := htwo
+    have hstep : ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + (Hf n:ℝ)/((q':ℝ)*(n:ℝ)))
+        < (n:ℝ)/(((q:ℝ)*(q':ℝ))*(n:ℝ)) := (lt_div_iff₀ hden).mpr hlt
+    have hconv : ((n:ℝ)) / (((q:ℝ)*(q':ℝ))*(n:ℝ)) = 1/((q:ℝ)*(q':ℝ)) := by
+      rw [mul_comm ((q:ℝ)*(q':ℝ)) ((n:ℝ)), div_mul_eq_div_div, div_self hnz, one_div]
+    rw [hconv] at hstep
+    exact hstep
+  have hsp := one_div_mul_le_abs_sub_frac q q' a a' (Nat.lt_of_succ_le hq1)
+    (Nat.lt_of_succ_le hq1') hne
+  exact absurd (hsp.trans htri) (not_le.mpr hbound)
+
+end OuterDisk
+
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
   sorry
