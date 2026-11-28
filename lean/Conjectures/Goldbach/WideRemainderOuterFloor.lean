@@ -1,5 +1,6 @@
 import Mathlib
 import PEqualNP.Outside.L_goldbach_frontier_medcore_model_floor
+import PEqualNP.Outside.L_goldbach_skirt_paired_annulus_kernel
 
 open Real Complex intervalIntegral
 
@@ -3362,6 +3363,73 @@ lemma JG_biUnion_disjoint (n : ℕ) {ι : Type*} [DecidableEq ι] (S : ι → Se
     rw [Finset.set_biUnion_insert, JG_add n hiS hsU hdisj, ih hrest hhd, Finset.sum_insert hi]
 
 end OuterCore
+
+/-! ### Annulus bridge: the paired-annulus-kernel identity in task variables
+
+The whitelist import states its identity in `u`-space (`T a r = ∫_{-r}^{r}
+E(j·(a/q+u)) du`).  The two arms below translate the `t`-space annulus integrals
+`∫_{a/q−H}^{a/q−h}` and `∫_{a/q+h}^{a/q+H}` into that `u`-space form (`t = a/q + u`),
+so the kernel identity applies verbatim to the task's arcs. -/
+
+section AnnulusBridge
+
+/-- Left arm: `[a/q − H, a/q − h]` in `t`-space is `[−H, −h]` in `u`-space. -/
+lemma arm_left_integral (j : ℤ) (a q : ℕ) (H h : ℝ) :
+    (∫ t in ((a:ℝ)/q - H)..((a:ℝ)/q - h), GE ((j:ℝ)*t))
+      = ∫ u in (-H)..(-h), GE ((j:ℝ)*((a:ℝ)/q + u)) := by
+  rw [show ((a:ℝ)/q - H : ℝ) = -H + (a:ℝ)/q from by ring,
+      show ((a:ℝ)/q - h : ℝ) = -h + (a:ℝ)/q from by ring,
+      ← integral_comp_add_right (f := fun t => GE ((j:ℝ)*t)) (a := -H) (b := -h) (d := (a:ℝ)/q)]
+  refine intervalIntegral.integral_congr fun x _ => ?_
+  congr 1
+  ring
+
+/-- Right arm: `[a/q + h, a/q + H]` in `t`-space is `[h, H]` in `u`-space. -/
+lemma arm_right_integral (j : ℤ) (a q : ℕ) (H h : ℝ) :
+    (∫ t in ((a:ℝ)/q + h)..((a:ℝ)/q + H), GE ((j:ℝ)*t))
+      = ∫ u in h..H, GE ((j:ℝ)*((a:ℝ)/q + u)) := by
+  rw [show ((a:ℝ)/q + h : ℝ) = h + (a:ℝ)/q from by ring,
+      show ((a:ℝ)/q + H : ℝ) = H + (a:ℝ)/q from by ring,
+      ← integral_comp_add_right (f := fun t => GE ((j:ℝ)*t)) (a := h) (b := H) (d := (a:ℝ)/q)]
+  refine intervalIntegral.integral_congr fun x _ => ?_
+  congr 1
+  ring
+
+/-- **Annulus bridge.**  The sum over reduced residues of the two `t`-space annulus
+arm integrals equals the paired-annulus-kernel right-hand side: the Ramanujan-weighted
+sinc difference `(Σ_a E(j·a/q)) · [sin(2πjH) − sin(2πjh)]/(πj)` (and `2(H−h)` at `j=0`). -/
+lemma annulus_sum_bridge (q : ℕ) (j : ℤ) (h H : ℝ) (hq : 0 < q) (hh : 0 ≤ h) (hhH : h ≤ H) :
+    (∑ a ∈ (Finset.range q).filter (fun a => Nat.Coprime a q),
+        ((∫ t in ((a:ℝ)/q - H)..((a:ℝ)/q - h), GE ((j:ℝ)*t))
+          + ∫ t in ((a:ℝ)/q + h)..((a:ℝ)/q + H), GE ((j:ℝ)*t)))
+      = (∑ a ∈ (Finset.range q).filter (fun a => Nat.Coprime a q), GE ((j:ℝ)*a/q))
+        * ((if j = 0 then 2 * (H - h)
+            else (Real.sin (2 * Real.pi * j * H) - Real.sin (2 * Real.pi * j * h)) / (Real.pi * j) : ℝ) : ℂ) := by
+  have hmod := PEqualNP.Outside.L_goldbach_skirt_paired_annulus_kernel q j h H hq hh hhH
+  have hstep : ∀ a ∈ (Finset.range q).filter (fun a => Nat.Coprime a q),
+      ((∫ t in ((a:ℝ)/q - H)..((a:ℝ)/q - h), GE ((j:ℝ)*t))
+        + ∫ t in ((a:ℝ)/q + h)..((a:ℝ)/q + H), GE ((j:ℝ)*t))
+      = (intervalIntegral (fun u => GE ((j:ℝ)*((a:ℝ)/q + u))) (-H) H MeasureTheory.volume
+          - intervalIntegral (fun u => GE ((j:ℝ)*((a:ℝ)/q + u))) (-h) h MeasureTheory.volume) := by
+    intro a _
+    have hf : Continuous (fun u => GE ((j:ℝ)*((a:ℝ)/q + u))) := by
+      have hGE : Continuous GE := continuous_GE
+      have h1 : Continuous (fun u => (j:ℝ)*((a:ℝ)/q + u)) := by fun_prop
+      exact hGE.comp h1
+    have hAA : (∫ u in (-H)..(-h), GE ((j:ℝ)*((a:ℝ)/q + u)))
+        + ∫ u in (-h)..h, GE ((j:ℝ)*((a:ℝ)/q + u))
+        = ∫ u in (-H)..h, GE ((j:ℝ)*((a:ℝ)/q + u)) :=
+      integral_add_adjacent_intervals (hf.intervalIntegrable (-H) (-h)) (hf.intervalIntegrable (-h) h)
+    have hCC : (∫ u in (-H)..h, GE ((j:ℝ)*((a:ℝ)/q + u)))
+        + ∫ u in h..H, GE ((j:ℝ)*((a:ℝ)/q + u))
+        = ∫ u in (-H)..H, GE ((j:ℝ)*((a:ℝ)/q + u)) :=
+      integral_add_adjacent_intervals (hf.intervalIntegrable (-H) h) (hf.intervalIntegrable h H)
+    rw [arm_left_integral j a q H h, arm_right_integral j a q H h]
+    linear_combination (hAA + hCC)
+  rw [Finset.sum_congr rfl hstep]
+  exact hmod
+
+end AnnulusBridge
 
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
   sorry
