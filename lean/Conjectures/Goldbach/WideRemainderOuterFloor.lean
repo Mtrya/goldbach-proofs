@@ -3689,5 +3689,257 @@ lemma outerAnnulus_subset_Icc (n q a : ℕ) (hn : 2^63 ≤ n) (hq : Qf n < q)
 
 end OuterGeometry
 
+/-! ### Outer spacing: numerical bounds
+
+Every spacing estimate below reduces to `512 * Qf n < Q1f n`, valid from `n ≥ 2^63`
+onward via `log₂(n+2) ≤ (10/229)·(n+2)^{1/6}` (the ratio `x^{1/6}/log₂ x` is ≈ 22.99
+at `2^63` and increasing) together with `(n+2)^{1/3} ≤ n^{1/3} + 2`. -/
+
+section OuterSpacing
+
+/-- Gap `(10/229)·x^{1/6} − log₂ x`, positive and increasing on `[2^63, ∞)`. -/
+private noncomputable def logSixthGap229 (x : ℝ) : ℝ :=
+  (10/229:ℝ) * x^(1/6:ℝ) - Real.log x / Real.log 2
+
+lemma log2_le_tenth_229_sixth_root (x : ℝ) (hx : (2:ℝ)^(63:ℝ) ≤ x) :
+    Real.log x / Real.log 2 ≤ (10/229:ℝ) * x^(1/6:ℝ) := by
+  have hlog2pos : 0 < Real.log 2 := Real.log_pos (by norm_num : (1:ℝ) < 2)
+  have hlog2half : 1/2 ≤ Real.log 2 := by
+    have h := Real.log_lt_sub_one_of_pos (by norm_num : 0 < (1/2:ℝ)) (by norm_num : (1/2:ℝ) ≠ 1)
+    rw [show (1/2:ℝ) = (2:ℝ)⁻¹ from by norm_num, Real.log_inv] at h
+    linarith
+  have hpow2 : ((2:ℝ)^(63:ℝ))^(1/6:ℝ) = (2:ℝ)^((21:ℝ)/2) := by
+    have h := Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) 63 (1/6:ℝ)
+    rw [show (63:ℝ)*(1/6:ℝ) = (21:ℝ)/2 from by norm_num] at h
+    exact h.symm
+  have h2half : (14427:ℝ)/10 < (2:ℝ)^((21:ℝ)/2) := by
+    refine (sq_lt_sq₀ (by norm_num : 0 ≤ (14427:ℝ)/10)
+      (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) ((21:ℝ)/2))).mp ?_
+    have h1 : ((2:ℝ)^((21:ℝ)/2))^2 = (2:ℝ)^(21:ℝ) := by
+      have h := Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) ((21:ℝ)/2) ((2:ℕ):ℝ)
+      rw [show ((21:ℝ)/2)*((2:ℕ):ℝ) = 21 from by norm_num] at h
+      rw [Real.rpow_natCast] at h
+      exact h.symm
+    have h2 : (2:ℝ)^(21:ℝ) = 2097152 := by norm_num
+    rw [h1, h2]
+    norm_num
+  have hg' : ∀ y : ℝ, 0 < y → HasDerivAt logSixthGap229
+      ((10/229:ℝ)*(1/6:ℝ) * y^((1/6:ℝ) - 1) - 1/(y * Real.log 2)) y := by
+    intro y hy0
+    have hp1 : HasDerivAt (fun z : ℝ => z^(1/6:ℝ)) ((1/6:ℝ) * y^((1/6:ℝ) - 1)) y :=
+      Real.hasDerivAt_rpow_const (Or.inl hy0.ne')
+    have hp2 : HasDerivAt (fun z : ℝ => (10/229:ℝ) * z^(1/6:ℝ))
+        ((10/229:ℝ) * ((1/6:ℝ) * y^((1/6:ℝ) - 1))) y := hp1.const_mul (10/229:ℝ)
+    have hl : HasDerivAt Real.log (1/y) y := by
+      simpa using Real.hasDerivAt_log hy0.ne'
+    have hp3 : HasDerivAt (fun z : ℝ => Real.log z / Real.log 2) ((1/y) / Real.log 2) y :=
+      hl.div_const (Real.log 2)
+    have hslope : (10/229:ℝ)*(1/6:ℝ) * y^((1/6:ℝ) - 1) - 1/(y * Real.log 2)
+        = (10/229:ℝ) * ((1/6:ℝ) * y^((1/6:ℝ) - 1)) - (1/y) / Real.log 2 := by
+      field_simp
+    rw [hslope]
+    exact hp2.sub hp3
+  have hg'pos : ∀ y : ℝ, (2:ℝ)^(63:ℝ) < y → 0 < deriv logSixthGap229 y := by
+    intro y hy
+    have hy0 : 0 < y := lt_trans (Real.rpow_pos_of_pos (by norm_num : 0 < (2:ℝ)) 63) hy
+    have hy6 : (14427:ℝ)/10 < y^(1/6:ℝ) := by
+      have h1 : ((2:ℝ)^(63:ℝ))^(1/6:ℝ) ≤ y^(1/6:ℝ) :=
+        Real.rpow_le_rpow (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) 63) (le_of_lt hy)
+          (by norm_num)
+      have h2 : (14427:ℝ)/10 < ((2:ℝ)^(63:ℝ))^(1/6:ℝ) := by rw [hpow2]; exact h2half
+      linarith
+    have hkey : (687:ℝ)/5 < y^(1/6:ℝ) * Real.log 2 := by
+      have h3 : (14427:ℝ)/10 * (1/2:ℝ) ≤ y^(1/6:ℝ) * Real.log 2 := by
+        refine mul_le_mul (le_of_lt hy6) hlog2half (by norm_num)
+          (Real.rpow_nonneg (le_of_lt hy0) (1/6:ℝ))
+      linarith
+    rw [(hg' y hy0).deriv, Real.rpow_sub hy0 (1/6:ℝ) 1, Real.rpow_one, sub_pos]
+    have hrw : (10/229:ℝ)*(1/6:ℝ) * (y^(1/6:ℝ)/y) = (5:ℝ) * y^(1/6:ℝ)/((687:ℝ)*y) := by
+      field_simp
+      ring
+    rw [hrw]
+    have hd1 : 0 < y * Real.log 2 := mul_pos hy0 hlog2pos
+    have hd2 : 0 < (687:ℝ) * y := mul_pos (by norm_num) hy0
+    rw [div_lt_div_iff₀ hd1 hd2]
+    have h687 : (687:ℝ) < (5:ℝ) * (y^(1/6:ℝ) * Real.log 2) := by linarith
+    have h5 := mul_lt_mul_of_pos_right h687 hy0
+    ring_nf at h5 ⊢
+    exact h5
+  have hmono : StrictMonoOn logSixthGap229 (Set.Ici ((2:ℝ)^(63:ℝ))) := by
+    refine strictMonoOn_of_deriv_pos (convex_Ici _) ?_ ?_
+    · intro x hx
+      have hx0 : 0 < x := by
+        have h1 : (0:ℝ) < (2:ℝ)^(63:ℝ) := Real.rpow_pos_of_pos (by norm_num) 63
+        have h2 : (2:ℝ)^(63:ℝ) ≤ x := Set.mem_Ici.mp hx
+        linarith
+      exact ((hg' x hx0).differentiableAt).differentiableWithinAt.continuousWithinAt
+    · intro x hx
+      rw [interior_Ici] at hx
+      exact hg'pos x hx
+  have hg0 : 0 < logSixthGap229 ((2:ℝ)^(63:ℝ)) := by
+    have h3 : Real.log ((2:ℝ)^(63:ℝ)) = 63 * Real.log 2 :=
+      Real.log_rpow (by norm_num : 0 < (2:ℝ)) 63
+    have h7 : (63 * Real.log 2) / Real.log 2 = 63 := by field_simp
+    have h10 : (10:ℝ)/229 * (2:ℝ)^((21:ℝ)/2) > (10:ℝ)/229 * ((14427:ℝ)/10) := by
+      apply mul_lt_mul_of_pos_left h2half (by norm_num : 0 < (10:ℝ)/229)
+    rw [logSixthGap229, hpow2, h3, h7]
+    linarith
+  have hgx : 0 < logSixthGap229 x := by
+    by_cases heq : x = (2:ℝ)^(63:ℝ)
+    · rw [heq]; exact hg0
+    · have hlt : (2:ℝ)^(63:ℝ) < x := lt_of_le_of_ne hx (Ne.symm heq)
+      exact lt_trans hg0 (hmono (Set.mem_Ici.mpr (le_refl _)) (Set.mem_Ici.mpr hx) hlt)
+  rw [logSixthGap229] at hgx
+  linarith
+
+/-- The master spacing inequality: `512·Q(n) < Q₁(n)` for `n ≥ 2^63`.  At `2^63` the
+left side is `512·3969 = 2032128` against `Q₁ = 2097152`, a margin of about `1.03`. -/
+lemma five_twelve_Qf_lt_Q1f (n : ℕ) (hn : 2^63 ≤ n) : 512 * Qf n < Q1f n := by
+  have hn2 : 2 ≤ n := le_trans (by norm_num : (2:ℕ) ≤ 2^63) hn
+  have hn0 : 0 < (n:ℝ) := by
+    have h : (0:ℕ) < n := lt_of_lt_of_le (by norm_num : (0:ℕ) < 2) hn2
+    exact_mod_cast h
+  have hpos2 : 0 < ((n:ℝ)+2) := by linarith
+  have hn63 : (2:ℝ)^(63:ℝ) ≤ (n:ℝ) + 2 := by
+    have h1' : ((2^63 : ℕ) : ℝ) ≤ (n:ℝ) + 2 := by
+      exact_mod_cast (le_trans hn (Nat.le_add_right n 2))
+    have h2' : ((2^63 : ℕ) : ℝ) = (2:ℝ)^(63:ℝ) := by norm_num
+    rw [h2'] at h1'
+    exact h1'
+  have hlogpos : 0 < Real.log 2 := Real.log_pos (by norm_num : (1:ℝ) < 2)
+  have hL : Real.log ((n:ℝ)+2) / Real.log 2 ≤ (10/229:ℝ) * ((n:ℝ)+2)^(1/6:ℝ) :=
+    log2_le_tenth_229_sixth_root _ hn63
+  have hL0 : 0 ≤ Real.log ((n:ℝ)+2) / Real.log 2 :=
+    div_nonneg (le_of_lt (Real.log_pos (by linarith))) hlogpos.le
+  have hx6 : 0 ≤ ((n:ℝ)+2)^(1/6:ℝ) := Real.rpow_nonneg (le_of_lt hpos2) (1/6:ℝ)
+  have hnat : ((Nat.log 2 (n+2) : ℕ) : ℝ) ≤ Real.log ((n:ℝ)+2) / Real.log 2 := by
+    have h3 := Real.natLog_le_logb (n+2) 2
+    rw [← Real.log_div_log] at h3
+    push_cast at h3
+    exact h3
+  have hQf : (Qf n : ℝ) ≤ (Real.log ((n:ℝ)+2) / Real.log 2)^2 := by
+    have h1 : (Qf n : ℝ) = ((Nat.log 2 (n+2) : ℕ) : ℝ)^2 := by rw [Qf]; push_cast; ring
+    rw [h1]
+    exact sq_le_sq' (by linarith) hnat
+  have hm : (2097152:ℝ) ≤ (n:ℝ)^(1/3:ℝ) := by
+    have h21 : ((2:ℝ)^(63:ℝ))^(1/3:ℝ) = (2:ℝ)^(21:ℝ) := by
+      have h := Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) 63 (1/3:ℝ)
+      rw [show (63:ℝ)*(1/3:ℝ) = 21 from by norm_num] at h
+      exact h.symm
+    have h22 : (2:ℝ)^(21:ℝ) = 2097152 := by norm_num
+    calc (2097152:ℝ) = (2:ℝ)^(21:ℝ) := by rw [h22]
+      _ = ((2:ℝ)^(63:ℝ))^(1/3:ℝ) := by rw [h21]
+      _ ≤ (n:ℝ)^(1/3:ℝ) := Real.rpow_le_rpow
+            (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) 63)
+            (by
+              have h63 := Real.rpow_natCast 2 63
+              rw [show ((63:ℕ):ℝ) = (63:ℝ) from by norm_num] at h63
+              rw [h63]
+              exact_mod_cast hn) (by norm_num)
+  have hsub : ((n:ℝ)+2)^(1/3:ℝ) ≤ (n:ℝ)^(1/3:ℝ) + 2 := by
+    have hb : 0 ≤ (n:ℝ)^(1/3:ℝ) + (2:ℝ)^(1/3:ℝ) :=
+      add_nonneg (Real.rpow_nonneg (Nat.cast_nonneg n) (1/3:ℝ))
+        (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) (1/3:ℝ))
+    have ha3 : ((n:ℝ)^(1/3:ℝ))^3 = (n:ℝ) := by
+      have h := Real.rpow_mul (Nat.cast_nonneg n) (1/3:ℝ) ((3:ℕ):ℝ)
+      rw [show (1:ℝ)/3*((3:ℕ):ℝ) = 1 from by norm_num, Real.rpow_one] at h
+      rw [Real.rpow_natCast] at h
+      exact h.symm
+    have hb3 : ((2:ℝ)^(1/3:ℝ))^3 = 2 := by
+      have h := Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) (1/3:ℝ) ((3:ℕ):ℝ)
+      rw [show (1:ℝ)/3*((3:ℕ):ℝ) = 1 from by norm_num, Real.rpow_one] at h
+      rw [Real.rpow_natCast] at h
+      exact h.symm
+    have hcub : (n:ℝ) + 2 ≤ ((n:ℝ)^(1/3:ℝ) + (2:ℝ)^(1/3:ℝ))^3 := by
+      have hexp : ((n:ℝ)^(1/3:ℝ) + (2:ℝ)^(1/3:ℝ))^3
+          = ((n:ℝ)^(1/3:ℝ))^3 + 3*((n:ℝ)^(1/3:ℝ))^2*(2:ℝ)^(1/3:ℝ)
+            + 3*(n:ℝ)^(1/3:ℝ)*((2:ℝ)^(1/3:ℝ))^2 + ((2:ℝ)^(1/3:ℝ))^3 := by ring
+      rw [hexp, ha3, hb3]
+      linarith [mul_nonneg (sq_nonneg ((n:ℝ)^(1/3:ℝ))) (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) (1/3:ℝ)),
+        mul_nonneg (Real.rpow_nonneg (Nat.cast_nonneg n) (1/3:ℝ)) (sq_nonneg ((2:ℝ)^(1/3:ℝ)))]
+    have hiff := Real.rpow_le_rpow_iff (by linarith : 0 ≤ ((n:ℝ)+2)) (pow_nonneg hb (3:ℕ))
+      (by norm_num : (0:ℝ) < 1/3)
+    have h1 : ((n:ℝ)+2)^(1/3:ℝ) ≤ (((n:ℝ)^(1/3:ℝ) + (2:ℝ)^(1/3:ℝ))^3)^(1/3:ℝ) := hiff.mpr hcub
+    have h2 : (((n:ℝ)^(1/3:ℝ) + (2:ℝ)^(1/3:ℝ))^3)^(1/3:ℝ) = (n:ℝ)^(1/3:ℝ) + (2:ℝ)^(1/3:ℝ) := by
+      have h := Real.rpow_mul hb ((3:ℕ):ℝ) (1/3:ℝ)
+      rw [show ((3:ℕ):ℝ) * (1/3:ℝ) = 1 from by norm_num, Real.rpow_one] at h
+      rw [Real.rpow_natCast] at h
+      exact h.symm
+    rw [h2] at h1
+    have h2le : (2:ℝ)^(1/3:ℝ) ≤ 2 := by
+      have h := Real.rpow_le_rpow_of_exponent_le (by norm_num : (1:ℝ) ≤ 2)
+        (by norm_num : (1:ℝ)/3 ≤ (1:ℝ))
+      rw [show (2:ℝ)^(1:ℝ) = 2 from by rw [Real.rpow_one]] at h
+      exact h
+    linarith [h1, h2le]
+  have hfinal : (512:ℝ) * (Qf n : ℝ) < (n:ℝ)^(1/3:ℝ) - 1 := by
+    have hsq : (Real.log ((n:ℝ)+2) / Real.log 2)^2
+        ≤ (100:ℝ)/52441 * ((n:ℝ)+2)^(1/3:ℝ) := by
+      have h3 := sq_le_sq' (by linarith) hL
+      have h4 : ((10:ℝ)/229 * ((n:ℝ)+2)^(1/6:ℝ))^2
+          = (100:ℝ)/52441 * (((n:ℝ)+2)^(1/6:ℝ))^2 := by ring
+      have h5 : (((n:ℝ)+2)^(1/6:ℝ))^2 = ((n:ℝ)+2)^(1/3:ℝ) := by
+        have h := Real.rpow_mul (le_of_lt hpos2) (1/6:ℝ) ((2:ℕ):ℝ)
+        rw [show (1:ℝ)/6*((2:ℕ):ℝ) = 1/3 from by norm_num] at h
+        rw [Real.rpow_natCast] at h
+        exact h.symm
+      have h6 : ((10:ℝ)/229 * ((n:ℝ)+2)^(1/6:ℝ))^2
+          = (100:ℝ)/52441 * ((n:ℝ)+2)^(1/3:ℝ) := by rw [h4, h5]
+      linarith [h3.trans h6.le]
+    have h1 : (512:ℝ) * (Qf n : ℝ) ≤ (51200:ℝ)/52441 * ((n:ℝ)+2)^(1/3:ℝ) := by
+      exact le_trans (mul_le_mul_of_nonneg_left hQf (by norm_num)) (by linarith [hsq])
+    have h2 : (51200:ℝ)/52441 * (((n:ℝ)+2)^(1/3:ℝ)) < (n:ℝ)^(1/3:ℝ) - 1 := by
+      have h3 : (51200:ℝ)/52441 * ((n:ℝ)^(1/3:ℝ) + 2) < (n:ℝ)^(1/3:ℝ) - 1 := by
+        linarith
+      linarith [hsub]
+    linarith [h1, h2]
+  have h5 : (n:ℝ)^(1/3:ℝ) - 1 < (Q1f n : ℝ) := by
+    have h6 : (n:ℝ)^(1/3:ℝ) < (Q1f n : ℝ) + 1 := Nat.lt_floor_add_one _
+    linarith
+  exact_mod_cast lt_trans hfinal h5
+
+lemma Qf_lt_Q1f (n : ℕ) (hn : 2^63 ≤ n) : Qf n < Q1f n := by
+  have h := five_twelve_Qf_lt_Q1f n hn
+  have h0 : 0 ≤ Qf n := Nat.cast_nonneg _
+  linarith
+
+lemma four_lt_Q1f (n : ℕ) (hn : 2^63 ≤ n) : 4 < Q1f n := by
+  have hM : (2097152:ℝ) ≤ (n:ℝ)^(1/3:ℝ) := by
+    have h21 : ((2:ℝ)^(63:ℝ))^(1/3:ℝ) = (2:ℝ)^(21:ℝ) := by
+      have h := Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) 63 (1/3:ℝ)
+      rw [show (63:ℝ)*(1/3:ℝ) = 21 from by norm_num] at h
+      exact h.symm
+    have h22 : (2:ℝ)^(21:ℝ) = 2097152 := by norm_num
+    calc (2097152:ℝ) = (2:ℝ)^(21:ℝ) := by rw [h22]
+      _ = ((2:ℝ)^(63:ℝ))^(1/3:ℝ) := by rw [h21]
+      _ ≤ (n:ℝ)^(1/3:ℝ) := Real.rpow_le_rpow
+            (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) 63)
+            (by
+              have h63 := Real.rpow_natCast 2 63
+              rw [show ((63:ℕ):ℝ) = (63:ℝ) from by norm_num] at h63
+              rw [h63]
+              exact_mod_cast hn) (by norm_num)
+  have h1 : (5:ℕ) ≤ Q1f n := Nat.le_floor (by linarith)
+  linarith
+
+lemma Q1f_cubic_le (n : ℕ) : (Q1f n)^3 ≤ n := by
+  have h1 : (Q1f n : ℝ) ≤ (n:ℝ)^(1/3:ℝ) :=
+    Nat.floor_le (Real.rpow_nonneg (Nat.cast_nonneg n) (1/3:ℝ))
+  have h2 : 0 ≤ (Q1f n : ℝ) := Nat.cast_nonneg _
+  have h3 : (Q1f n : ℝ)^3 ≤ ((n:ℝ)^(1/3:ℝ))^3 := by
+    have h4 := Real.rpow_le_rpow h2 h1 (by norm_num : 0 ≤ ((3:ℕ):ℝ))
+    rw [Real.rpow_natCast, Real.rpow_natCast] at h4
+    exact h4
+  have h4 : ((n:ℝ)^(1/3:ℝ))^3 = (n:ℝ) := by
+    have h := Real.rpow_mul (Nat.cast_nonneg n) (1/3:ℝ) ((3:ℕ):ℝ)
+    rw [show (1:ℝ)/3*((3:ℕ):ℝ) = 1 from by norm_num, Real.rpow_one] at h
+    rw [Real.rpow_natCast] at h
+    exact h.symm
+  have h5 : (Q1f n : ℝ)^3 = ((Q1f n)^3 : ℕ) := by rw [Nat.cast_pow]
+  rw [h5, h4] at h3
+  exact_mod_cast h3
+
+end OuterSpacing
+
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
   sorry
