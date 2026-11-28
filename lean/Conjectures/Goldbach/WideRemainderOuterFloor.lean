@@ -3333,6 +3333,34 @@ lemma measurableSet_outerTarget (n : ℕ) :
     MeasurableSet (remainderRegion n \ innerRegion n) :=
   (measurableSet_remainderRegion n).diff (measurableSet_innerRegion n)
 
+/-- `JG` is finitely additive over a finite pairwise-disjoint measurable family. -/
+lemma JG_biUnion_disjoint (n : ℕ) {ι : Type*} [DecidableEq ι] (S : ι → Set ℝ)
+    (s : Finset ι) (hS : ∀ i ∈ s, MeasurableSet (S i))
+    (hd : ∀ i ∈ s, ∀ j ∈ s, i ≠ j → Disjoint (S i) (S j)) :
+    JG n (⋃ i ∈ s, S i) = ∑ i ∈ s, JG n (S i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+    have : (⋃ i ∈ (∅ : Finset ι), S i) = ∅ := by simp
+    rw [this, JG_empty, Finset.sum_empty]
+  | @insert i s hi ih =>
+    have hiS : MeasurableSet (S i) := hS i (Finset.mem_insert_self i s)
+    have hmem : ∀ j ∈ s, j ≠ i := fun j hj hji => hi (hji ▸ hj)
+    have hsU : MeasurableSet (⋃ j ∈ s, S j) := by
+      refine Finset.measurableSet_biUnion s (fun j hj => hS j (Finset.mem_insert_of_mem hj))
+    have hdisj : Disjoint (S i) (⋃ j ∈ s, S j) := by
+      rw [Set.disjoint_left]
+      intro t ht1 ht2
+      simp only [Set.mem_iUnion] at ht2
+      obtain ⟨j, hj, htj⟩ := ht2
+      exact absurd htj (Set.disjoint_left.mp
+        (hd i (Finset.mem_insert_self i s) j (Finset.mem_insert_of_mem hj)
+          (Ne.symm (hmem j hj))) ht1)
+    have hrest : ∀ j ∈ s, MeasurableSet (S j) := fun j hj => hS j (Finset.mem_insert_of_mem hj)
+    have hhd : ∀ j ∈ s, ∀ k ∈ s, j ≠ k → Disjoint (S j) (S k) := fun j hj k hk hjk =>
+      hd j (Finset.mem_insert_of_mem hj) k (Finset.mem_insert_of_mem hk) hjk
+    rw [Finset.set_biUnion_insert, JG_add n hiS hsU hdisj, ih hrest hhd, Finset.sum_insert hi]
+
 end OuterCore
 
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
