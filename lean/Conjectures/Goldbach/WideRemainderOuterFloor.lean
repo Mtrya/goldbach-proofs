@@ -497,7 +497,7 @@ lemma JG_partition (n : ℕ)
     have hseteq : wideArcsRegion n \ arcsRegion n
         = lowPartRegion n ∪ remainderRegion n := by
       ext t
-      simp only [lowPartRegion, remainderRegion, Set.mem_diff, Set.mem_union]
+      simp only [lowPartRegion, remainderRegion, Set.mem_sdiff, Set.mem_union]
       by_cases h1t : t ∈ arcsRegion n
       · simp [h1t]
       · by_cases h2t : t ∈ lowWideArcsRegion n
@@ -515,7 +515,7 @@ lemma JG_partition (n : ℕ)
     have hseteq : remainderRegion n
         = remainderRegion n ∩ innerRegion n ∪ (remainderRegion n \ innerRegion n) := by
       ext t
-      simp only [remainderRegion, Set.mem_inter_iff, Set.mem_diff, Set.mem_union]
+      simp only [remainderRegion, Set.mem_inter_iff, Set.mem_sdiff, Set.mem_union]
       tauto
     have hdisj : Disjoint (remainderRegion n ∩ innerRegion n)
         (remainderRegion n \ innerRegion n) := by
@@ -3293,7 +3293,7 @@ lemma remainder_eq (n : ℕ) :
     remainderRegion n = wideArcsRegion n \ (arcsRegion n ∪ lowWideArcsRegion n) := by
   unfold remainderRegion lowPartRegion
   ext t
-  simp only [Set.mem_diff, Set.mem_union]
+  simp only [Set.mem_sdiff, Set.mem_union]
   tauto
 
 /-- **Vacuity threshold.** If `Q₁(n) ≤ Q(n)` then `wideArcs ⊆ lowWideArcs` (same radius
@@ -3940,6 +3940,133 @@ lemma Q1f_cubic_le (n : ℕ) : (Q1f n)^3 ≤ n := by
   exact_mod_cast h3
 
 end OuterSpacing
+
+/-! ### Outer spacing: fraction separation and pairwise-disjoint disks
+
+Every arc/disjointness estimate reduces to `512·Q < Q₁`.  The three workhorse bounds
+are `H·(Q+Q₁) < n`, `2·H·Q₁ < n` and `Q₁·(H + Q·n^{1/6}) < n`. -/
+
+section OuterDisjoint
+
+lemma Hf_add_lt (n : ℕ) (hn : 2^63 ≤ n) :
+    (Hf n : ℝ) * ((Qf n : ℝ) + (Q1f n : ℝ)) < (n:ℝ) := by
+  have h512 := five_twelve_Qf_lt_Q1f n hn
+  have hcub := Q1f_cubic_le n
+  have hq : (0:ℝ) ≤ (Qf n : ℝ) := Nat.cast_nonneg _
+  have h512r : (512:ℝ) * (Qf n : ℝ) < (Q1f n : ℝ) := by exact_mod_cast h512
+  have hcubr : (Q1f n : ℝ)^3 ≤ (n:ℝ) := by exact_mod_cast hcub
+  have hq1pos : (4:ℝ) < (Q1f n : ℝ) := by
+    have h := four_lt_Q1f n hn
+    exact_mod_cast h
+  have hp : (0:ℝ) < (Q1f n : ℝ) := by linarith
+  have hsq : (0:ℝ) < (Q1f n : ℝ)^2 := pow_pos hp 2
+  have h1 : (256:ℝ) * (Q1f n : ℝ)^2 * (Qf n : ℝ) < (Q1f n : ℝ)^3 / 2 := by
+    have h5 : (512:ℝ) * (Qf n : ℝ) * (Q1f n : ℝ)^2 < (Q1f n : ℝ) * (Q1f n : ℝ)^2 :=
+      mul_lt_mul_of_pos_right h512r hsq
+    nlinarith
+  have h2 : (256:ℝ) * (Q1f n : ℝ) * (Qf n : ℝ)^2 < (Q1f n : ℝ)^3 / 2 := by
+    have hq2 : (Qf n : ℝ) ≤ (Q1f n : ℝ) := by
+      have h := Qf_lt_Q1f n hn
+      exact_mod_cast (le_of_lt h)
+    have hle1 : (Qf n : ℝ) * (Qf n : ℝ) ≤ (Q1f n : ℝ) * (Qf n : ℝ) :=
+      mul_le_mul_of_nonneg_right hq2 hq
+    have hle2 : (256:ℝ) * (Q1f n : ℝ) * ((Qf n : ℝ) * (Qf n : ℝ))
+        ≤ (256:ℝ) * (Q1f n : ℝ) * ((Q1f n : ℝ) * (Qf n : ℝ)) :=
+      mul_le_mul_of_nonneg_left hle1 (mul_nonneg (by norm_num) hp.le)
+    nlinarith [hle2, h1]
+  have hHf : (Hf n : ℝ) = 256 * (Q1f n : ℝ) * (Qf n : ℝ) := by rw [Hf]; push_cast; ring
+  rw [hHf]
+  nlinarith [hcubr, h1, h2]
+
+lemma Hf_two_Q1_lt (n : ℕ) (hn : 2^63 ≤ n) :
+    (2:ℝ) * (Hf n : ℝ) * (Q1f n : ℝ) < (n:ℝ) := by
+  have h512 := five_twelve_Qf_lt_Q1f n hn
+  have hcubr : ((Q1f n : ℝ))^3 ≤ (n:ℝ) := by exact_mod_cast (Q1f_cubic_le n)
+  have h512r : (512:ℝ) * (Qf n : ℝ) < (Q1f n : ℝ) := by exact_mod_cast h512
+  have hq1pos : (4:ℝ) < (Q1f n : ℝ) := by
+    have h := four_lt_Q1f n hn
+    exact_mod_cast h
+  have hp : (0:ℝ) < (Q1f n : ℝ) := by linarith
+  have hsq : (0:ℝ) < (Q1f n : ℝ)^2 := pow_pos hp 2
+  have hHf : (Hf n : ℝ) = 256 * (Q1f n : ℝ) * (Qf n : ℝ) := by rw [Hf]; push_cast; ring
+  have h1 : (512:ℝ) * (Qf n : ℝ) * (Q1f n : ℝ)^2 < (Q1f n : ℝ) * (Q1f n : ℝ)^2 :=
+    mul_lt_mul_of_pos_right h512r hsq
+  rw [hHf]
+  nlinarith [hcubr, h1]
+
+lemma Q1_Hf_Qf_sixth_lt (n : ℕ) (hn : 2^63 ≤ n) :
+    (Q1f n : ℝ) * ((Hf n : ℝ) + (Qf n : ℝ) * (n:ℝ)^(1/6:ℝ)) < (n:ℝ) := by
+  have h512 := five_twelve_Qf_lt_Q1f n hn
+  have hcubr : ((Q1f n : ℝ))^3 ≤ (n:ℝ) := by exact_mod_cast (Q1f_cubic_le n)
+  have hq1pos : (4:ℝ) < (Q1f n : ℝ) := by
+    have h := four_lt_Q1f n hn
+    exact_mod_cast h
+  have h512r : (512:ℝ) * (Qf n : ℝ) < (Q1f n : ℝ) := by exact_mod_cast h512
+  have hHf : (Hf n : ℝ) = 256 * (Q1f n : ℝ) * (Qf n : ℝ) := by rw [Hf]; push_cast; ring
+  have hx : (0:ℝ) ≤ (Q1f n : ℝ) := Nat.cast_nonneg _
+  have hp : (0:ℝ) < (Q1f n : ℝ) := by linarith
+  have hsq : (0:ℝ) < (Q1f n : ℝ)^2 := pow_pos hp 2
+  have hn0 : (0:ℝ) ≤ (n:ℝ) := Nat.cast_nonneg n
+  have hnpos : (0:ℝ) < (n:ℝ) := by
+    have h : (0:ℕ) < n := lt_of_lt_of_le (by norm_num : 0 < 2^63) hn
+    exact_mod_cast h
+  have h1 : (256:ℝ) * (Q1f n : ℝ)^2 * (Qf n : ℝ) < (Q1f n : ℝ)^3 / 2 := by
+    have h5 : (512:ℝ) * (Qf n : ℝ) * (Q1f n : ℝ)^2 < (Q1f n : ℝ) * (Q1f n : ℝ)^2 :=
+      mul_lt_mul_of_pos_right h512r hsq
+    nlinarith
+  have hroot : (2:ℝ) * (Q1f n : ℝ)^2 * (n:ℝ)^(1/6:ℝ) < (n:ℝ) := by
+    have hmono : ((Q1f n : ℝ)^3)^(5/6:ℝ) ≤ (n:ℝ)^(5/6:ℝ) := by
+      have h0 : (0:ℝ) ≤ (Q1f n : ℝ)^3 := by
+        rw [← Real.rpow_natCast]
+        exact Real.rpow_nonneg hx ((3:ℕ):ℝ)
+      exact Real.rpow_le_rpow h0 hcubr (by norm_num)
+    have hconv : ((Q1f n : ℝ)^3)^(5/6:ℝ) = (Q1f n : ℝ)^2 * (Q1f n : ℝ)^(1/2:ℝ) := by
+      rw [← Real.rpow_natCast, ← Real.rpow_natCast,
+        ← Real.rpow_mul hx ((3:ℕ):ℝ) (5/6:ℝ),
+        show ((3:ℕ):ℝ) * (5/6:ℝ) = ((2:ℕ):ℝ) + (1:ℝ)/2 from by norm_num,
+        Real.rpow_add hp ((2:ℕ):ℝ) ((1:ℝ)/2)]
+    have hsqrt : (2:ℝ) < (Q1f n : ℝ)^(1/2:ℝ) := by
+      refine lt_of_mul_self_lt_mul_self₀ (Real.rpow_nonneg hx (1/2:ℝ)) ?_
+      rw [← Real.rpow_add hp ((1:ℝ)/2) ((1:ℝ)/2),
+        show (1:ℝ)/2 + (1:ℝ)/2 = 1 from by norm_num, Real.rpow_one,
+        show (2:ℝ) * (2:ℝ) = 4 from by norm_num]
+      linarith
+    have hkey : (2:ℝ) * (Q1f n : ℝ)^2 < (n:ℝ)^(5/6:ℝ) := by
+      have hstep1 : (2:ℝ) * (Q1f n : ℝ)^2 < (Q1f n : ℝ)^2 * (Q1f n : ℝ)^(1/2:ℝ) := by
+        have h := mul_lt_mul_of_pos_right hsqrt hsq
+        rwa [mul_comm ((Q1f n : ℝ)^(1/2:ℝ)) ((Q1f n : ℝ)^2)] at h
+      rw [← hconv] at hstep1
+      exact lt_of_lt_of_le hstep1 hmono
+    have hstep : (2:ℝ) * (Q1f n : ℝ)^2 * (n:ℝ)^(1/6:ℝ)
+        < (n:ℝ)^(5/6:ℝ) * (n:ℝ)^(1/6:ℝ) :=
+      mul_lt_mul_of_pos_right hkey (Real.rpow_pos_of_pos hnpos (1/6:ℝ))
+    rw [← Real.rpow_add hnpos (5/6:ℝ) (1/6:ℝ),
+      show (5:ℝ)/6 + (1:ℝ)/6 = 1 from by norm_num, Real.rpow_one] at hstep
+    exact hstep
+  have h2 : (Q1f n : ℝ) * (Qf n : ℝ) * (n:ℝ)^(1/6:ℝ) < (n:ℝ)/2 := by
+    have hq2 : (Qf n : ℝ) ≤ (Q1f n : ℝ) := by
+      have h := Qf_lt_Q1f n hn
+      exact_mod_cast (le_of_lt h)
+    have hle1 : (Q1f n : ℝ) * (Qf n : ℝ) ≤ (Q1f n : ℝ) * (Q1f n : ℝ) :=
+      mul_le_mul_of_nonneg_left hq2 hx
+    have hle2 : (Q1f n : ℝ) * (Qf n : ℝ) * (n:ℝ)^(1/6:ℝ)
+        ≤ (Q1f n : ℝ) * (Q1f n : ℝ) * (n:ℝ)^(1/6:ℝ) :=
+      mul_le_mul_of_nonneg_right hle1 (Real.rpow_nonneg hn0 (1/6:ℝ))
+    have hroot' : (2:ℝ) * (Q1f n : ℝ) * (Q1f n : ℝ) * (n:ℝ)^(1/6:ℝ) < (n:ℝ) := by
+      have h2' : (2:ℝ) * (Q1f n : ℝ)^2 = (2:ℝ) * (Q1f n : ℝ) * (Q1f n : ℝ) := by ring
+      rw [h2'] at hroot
+      exact hroot
+    linarith
+  have h3 : (256:ℝ) * (Q1f n : ℝ)^2 * (Qf n : ℝ) < (n:ℝ)/2 := by
+    have h5 : (512:ℝ) * (Qf n : ℝ) * (Q1f n : ℝ)^2 < (Q1f n : ℝ) * (Q1f n : ℝ)^2 :=
+      mul_lt_mul_of_pos_right h512r hsq
+    have h6 : (256:ℝ) * (Q1f n : ℝ)^2 * (Qf n : ℝ) < (Q1f n : ℝ)^3 / 2 := by
+      nlinarith
+    nlinarith [hcubr, h6]
+  rw [hHf]
+  nlinarith [h2, h3]
+
+end OuterDisjoint
 
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
   sorry
