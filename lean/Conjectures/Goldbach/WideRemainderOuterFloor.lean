@@ -4819,6 +4819,193 @@ lemma annulus_radii_le (n q : ℕ) (hn : 2^63 ≤ n) (hq : 0 < q) :
     _ ≤ (Hf n:ℝ) * (1/((q:ℝ)*(n:ℝ))) := mul_le_mul_of_nonneg_right h (le_of_lt hinv)
     _ = (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) := by ring
 
+/-! ### Outer annulus integrals: from arms to the Ramanujan-weighted sinc -/
+
+section OuterAnnulusInt
+
+/-- A coprime residue of a modulus `q ≥ 2` is positive. -/
+private lemma coprime_left_pos {a q : ℕ} (hcop : Nat.Coprime a q) (hq : 2 ≤ q) : 0 < a := by
+  by_contra h
+  push_neg at h
+  have h0 : a = 0 := by omega
+  rw [h0, Nat.coprime_zero_left] at hcop
+  omega
+
+/-- The restricted kernel integral over a single outer annulus equals the sum of the two
+arm integrals (inner radius `Q·n^{1/6}/(qn)`, outer radius `H/(qn)`). -/
+lemma annInt_outerAnnulus (n : ℕ) (hn : 2^63 ≤ n) (j : ℤ) (q a : ℕ)
+    (hq : 0 < q) (ha : 0 < a) (halt : a < q) :
+    annInt j (outerAnnulus n q a)
+      = (∫ t in (a:ℝ)/q - (Hf n:ℝ)/((q:ℝ)*(n:ℝ))..
+          (a:ℝ)/q - (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)), GE ((j:ℝ)*t))
+        + (∫ t in (a:ℝ)/q + (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ))..
+          (a:ℝ)/q + (Hf n:ℝ)/((q:ℝ)*(n:ℝ)), GE ((j:ℝ)*t)) := by
+  have hq0 : (0:ℝ) < (q:ℝ) := by exact_mod_cast hq
+  have hn0 : (0:ℝ) < (n:ℝ) := by
+    exact_mod_cast lt_of_lt_of_le (by norm_num : (0:ℕ) < 2^63) hn
+  have hqn0 : (0:ℝ) < (q:ℝ)*(n:ℝ) := mul_pos hq0 hn0
+  have hh' : 0 ≤ (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)) :=
+    div_nonneg (mul_nonneg (Nat.cast_nonneg _) (Real.rpow_nonneg (Nat.cast_nonneg n) _))
+      (le_of_lt hqn0)
+  have hHh : (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)) ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) :=
+    annulus_radii_le n q hn hq
+  have hHf : (Hf n:ℝ) < (a:ℝ)*(n:ℝ) := by
+    have h1' : (1:ℝ) ≤ (a:ℝ) := by exact_mod_cast ha
+    have h2' : (Hf n:ℝ) < (n:ℝ)/2 := Hf_lt_half n hn
+    have h3' : (n:ℝ)/2 ≤ (a:ℝ)*(n:ℝ) := by nlinarith
+    linarith
+  have h0 : 0 ≤ (a:ℝ)/(q:ℝ) - (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) := by
+    have heq : (a:ℝ)/(q:ℝ) - (Hf n:ℝ)/((q:ℝ)*(n:ℝ))
+        = ((a:ℝ)*(n:ℝ) - (Hf n:ℝ))/((q:ℝ)*(n:ℝ)) := by
+      field_simp
+    rw [heq]
+    exact div_nonneg (by linarith) (le_of_lt hqn0)
+  have h1 : (a:ℝ)/(q:ℝ) + (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) ≤ 1 := by
+    have heq : (a:ℝ)/(q:ℝ) + (Hf n:ℝ)/((q:ℝ)*(n:ℝ))
+        = ((a:ℝ)*(n:ℝ) + (Hf n:ℝ))/((q:ℝ)*(n:ℝ)) := by
+      field_simp
+    rw [heq, div_le_one hqn0]
+    have hHf2 : (Hf n:ℝ) < (n:ℝ)/2 := Hf_lt_half n hn
+    have hmul : (a:ℝ)*(n:ℝ) + (n:ℝ) ≤ (q:ℝ)*(n:ℝ) := by
+      have h1'' : ((a:ℝ) + 1) * (n:ℝ) ≤ (q:ℝ)*(n:ℝ) :=
+        mul_le_mul_of_nonneg_right (by exact_mod_cast Nat.lt_iff_add_one_le.mp halt) (by linarith)
+      rw [add_mul, one_mul] at h1''
+      linarith
+    linarith
+  unfold annInt outerAnnulus
+  exact integral_annulus_arms (fun t => GE ((j:ℝ)*t)) ((a:ℝ)/(q:ℝ)) ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)))
+    ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ))) hh' hHh h0 h1 (continuous_GE_int_mul j)
+
+/-- Summing the restricted kernel over the annuli of one modulus collapses to the
+Ramanujan sum `c_q(j)` times the sinc-type factor of the bridge. -/
+lemma annInt_outerAnnulus_sum (n : ℕ) (hn : 2^63 ≤ n) (j : ℤ) (q : ℕ) (hq : Qf n < q) :
+    (∑ a ∈ (Finset.range (q + 1)).filter (fun a => Nat.Coprime a q),
+        annInt j (outerAnnulus n q a))
+      = csum q j.natAbs
+        * ((if j = 0 then
+              2 * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) - (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))
+            else
+              (Real.sin (2 * Real.pi * j * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ))))
+                  - Real.sin (2 * Real.pi * j * ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))))
+                / (Real.pi * j) : ℝ) : ℂ) := by
+  have hq2 : 2 ≤ q := by
+    have h1 : 1 ≤ Qf n := Qf_pos n
+    omega
+  have hq0 : (0:ℝ) < (q:ℝ) := Nat.cast_pos.mpr (by omega)
+  have hn0 : (0:ℝ) < (n:ℝ) := by
+    exact_mod_cast lt_of_lt_of_le (by norm_num : (0:ℕ) < 2^63) hn
+  have hqn0 : (0:ℝ) < (q:ℝ)*(n:ℝ) := mul_pos hq0 hn0
+  have hh' : 0 ≤ (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)) :=
+    div_nonneg (mul_nonneg (Nat.cast_nonneg _) (Real.rpow_nonneg (Nat.cast_nonneg n) _))
+      (le_of_lt hqn0)
+  have hHh := annulus_radii_le n q hn (by omega)
+  rw [filter_coprime_range_succ q hq2]
+  have hcongr :
+      (∑ a ∈ (Finset.range q).filter (fun a => Nat.Coprime a q), annInt j (outerAnnulus n q a))
+        = (∑ a ∈ (Finset.range q).filter (fun a => Nat.Coprime a q),
+            ((∫ t in (a:ℝ)/q - (Hf n:ℝ)/((q:ℝ)*(n:ℝ))..
+                (a:ℝ)/q - (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)), GE ((j:ℝ)*t))
+              + ∫ t in (a:ℝ)/q + (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ))..
+                (a:ℝ)/q + (Hf n:ℝ)/((q:ℝ)*(n:ℝ)), GE ((j:ℝ)*t))) := by
+    refine Finset.sum_congr rfl fun a ha => ?_
+    simp only [Finset.mem_filter, Finset.mem_range] at ha
+    exact annInt_outerAnnulus n hn j q a (by omega) (coprime_left_pos ha.2 hq2) ha.1
+  rw [hcongr, annulus_sum_bridge q j _ _ (by omega) hh' hHh, sum_GE_int_eq_csum q hq2 j]
+
+/-- Outer annuli for distinct index pairs are disjoint: they sit inside the pairwise
+disjoint outer disks around distinct Farey fractions. -/
+lemma outerAnnulus_disjoint (n : ℕ) (hn : 2^63 ≤ n) (p p' : ℕ × ℕ)
+    (hp : p ∈ outerIndex n) (hp' : p' ∈ outerIndex n) (hne : p ≠ p') :
+    Disjoint (outerAnnulus n p.1 p.2) (outerAnnulus n p'.1 p'.2) := by
+  obtain ⟨hQ, hQ1, _, hcop⟩ := mem_outerIndex_iff.mp hp
+  obtain ⟨hQ', hQ1', _, hcop'⟩ := mem_outerIndex_iff.mp hp'
+  have hq1 : 1 ≤ p.1 := lt_of_le_of_lt (Nat.zero_le _) hQ
+  have hq1' : 1 ≤ p'.1 := lt_of_le_of_lt (Nat.zero_le _) hQ'
+  have hq2 : 2 ≤ p.1 := by
+    have h1 : 1 ≤ Qf n := Qf_pos n
+    omega
+  have hq2' : 2 ≤ p'.1 := by
+    have h1 : 1 ≤ Qf n := Qf_pos n
+    omega
+  have hcop'' : Nat.Coprime p.2 p.1 := hcop
+  have hcop''' : Nat.Coprime p'.2 p'.1 := hcop'
+  have hfrac : (p.2:ℝ)/(p.1:ℝ) ≠ (p'.2:ℝ)/(p'.1:ℝ) := by
+    intro heq
+    obtain ⟨hqeq, haeq⟩ := eq_of_coprime_frac_eq hq1 hq1' hcop'' hcop''' heq
+    exact hne (by ext <;> assumption)
+  have hsub : ∀ q a : ℕ, outerAnnulus n q a ⊆ outerDisk n q a := by
+    intro _q _a _t ht
+    exact ht.2
+  exact Disjoint.mono (hsub p.1 p.2) (hsub p'.1 p'.2)
+    (outerDisk_disjoint n hn p.1 p'.1 p.2 p'.2 hq1 hq1' hQ1 hQ1' hfrac)
+
+/-- **Outer assembly.** The restricted kernel over the outer target `remainder ∖ inner`
+is the sum over admissible moduli `Q < q ≤ Q₁` of `c_q(j)` times the sinc factor. -/
+lemma annInt_outerPhi (n : ℕ) (hn : 2^63 ≤ n) (j : ℤ) :
+    annInt j (remainderRegion n \ innerRegion n)
+      = ∑ q ∈ Finset.Icc (Qf n + 1) (Q1f n),
+          csum q j.natAbs
+            * ((if j = 0 then
+                  2 * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) - (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))
+                else
+                  (Real.sin (2 * Real.pi * j * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ))))
+                      - Real.sin (2 * Real.pi * j * ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))))
+                    / (Real.pi * j) : ℝ) : ℂ) := by
+  calc annInt j (remainderRegion n \ innerRegion n)
+      = ∑ p ∈ outerIndex n, annInt j (outerAnnulus n p.1 p.2) := by
+        rw [remainder_inner_eq_outer_union n hn]
+        exact annInt_biUnion_disjoint j _ _
+          (fun p hp => measurableSet_outerAnnulus n p.1 p.2 hn
+            (lt_of_le_of_lt (Nat.zero_le _) (mem_outerIndex_iff.mp hp).1))
+          (fun p hp p' hp' hne => outerAnnulus_disjoint n hn p p' hp hp' hne)
+    _ = ∑ q ∈ Finset.Icc (Qf n + 1) (Q1f n),
+          ∑ a ∈ (Finset.range (q + 1)).filter (fun a => Nat.Coprime a q),
+            annInt j (outerAnnulus n q a) := by
+        have hpair : Set.PairwiseDisjoint
+            ((Finset.Icc (Qf n + 1) (Q1f n) : Finset ℕ) : Set ℕ)
+            (fun q : ℕ => ((Finset.range (q + 1)).filter (fun a => Nat.Coprime a q)).image
+              (fun a => (q, a))) := by
+          intro q _hq q' _hq' hne
+          show Disjoint _ _
+          rw [Finset.disjoint_iff_ne]
+          intro x hx y hy hxy
+          simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_range] at hx hy
+          obtain ⟨a, -, -, rfl⟩ := hx
+          obtain ⟨b, -, -, rfl⟩ := hy
+          exact hne (congrArg Prod.fst hxy)
+        simp only [outerIndex]
+        rw [Finset.sum_biUnion hpair]
+        refine Finset.sum_congr rfl fun q _ => ?_
+        rw [Finset.sum_image]
+        intro a _ha b _hb heq
+        exact congrArg Prod.snd heq
+    _ = ∑ q ∈ Finset.Icc (Qf n + 1) (Q1f n),
+          csum q j.natAbs
+            * ((if j = 0 then
+                  2 * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) - (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))
+                else
+                  (Real.sin (2 * Real.pi * j * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ))))
+                      - Real.sin (2 * Real.pi * j * ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))))
+                    / (Real.pi * j) : ℝ) : ℂ) := by
+        have hpoint : ∀ q ∈ Finset.Icc (Qf n + 1) (Q1f n),
+            (∑ a ∈ (Finset.range (q + 1)).filter (fun a => Nat.Coprime a q),
+                annInt j (outerAnnulus n q a))
+              = csum q j.natAbs
+                * ((if j = 0 then
+                      2 * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) - (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))
+                    else
+                      (Real.sin (2 * Real.pi * j * ((Hf n:ℝ)/((q:ℝ)*(n:ℝ))))
+                          - Real.sin (2 * Real.pi * j * ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)))))
+                        / (Real.pi * j) : ℝ) : ℂ) := by
+          intro q hq
+          have hlt : Qf n < q := by
+            have := Finset.mem_Icc.mp hq
+            omega
+          exact annInt_outerAnnulus_sum n hn j q hlt
+        exact Finset.sum_congr rfl hpoint
+
+end OuterAnnulusInt
+
 end OuterPhi
 
 
