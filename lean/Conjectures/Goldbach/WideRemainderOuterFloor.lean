@@ -5006,6 +5006,115 @@ lemma annInt_outerPhi (n : ℕ) (hn : 2^63 ≤ n) (j : ℤ) :
 
 end OuterAnnulusInt
 
+/-! ### Off-diagonal grouping: pair sums regrouped by target frequency -/
+
+section OffDiagGroup
+
+/-- Weighted Goldbach convolution over the square `0 ≤ k, l ≤ n`:
+`G(m) = Σ_{k+l=m} w(k)w(l)`. -/
+noncomputable def goldbachConv (n m : ℕ) : ℝ :=
+  ∑ i ∈ (Finset.range (n + 1)).filter (fun i => i ≤ m ∧ m - i ≤ n), GW i * GW (m - i)
+
+lemma goldbachConv_of_two_lt (n m : ℕ) (hm : 2 * n < m) : goldbachConv n m = 0 := by
+  unfold goldbachConv
+  refine Finset.sum_eq_zero fun i hi => ?_
+  simp only [Finset.mem_filter, Finset.mem_range] at hi
+  omega
+
+/-- For fixed `k₁`, the inner sum over `k₂` with the frequency condition `k₁+k₂ = m`
+is a singleton fiber. -/
+lemma sum_range_freq (n k1 m : ℕ) (f : ℕ → ℝ) :
+    (∑ k2 ∈ Finset.range (n + 1), if k1 + k2 = m then f k2 else 0)
+      = if k1 ≤ m ∧ m - k1 ≤ n then f (m - k1) else 0 := by
+  classical
+  by_cases hle : k1 ≤ m
+  · have hkey : ∀ k2 : ℕ, (k1 + k2 = m) ↔ (k2 = m - k1) := by
+      intro k2
+      constructor <;> intro h <;> omega
+    simp only [hkey, Finset.sum_ite_eq' (Finset.range (n + 1)) (m - k1) f]
+    by_cases hm : m - k1 ≤ n
+    · rw [if_pos (Finset.mem_range_succ_iff.mpr hm), if_pos ⟨hle, hm⟩]
+    · rw [if_neg (Finset.mem_range_succ_iff.not.mpr hm), if_neg (by omega)]
+  · have hzero : ∀ k2 ∈ Finset.range (n + 1), (if k1 + k2 = m then f k2 else 0) = 0 := by
+      intro k2 hk
+      simp only [Finset.mem_range] at hk
+      rw [if_neg (by omega : k1 + k2 ≠ m)]
+    rw [Finset.sum_congr rfl hzero, if_neg (by omega : ¬(k1 ≤ m ∧ m - k1 ≤ n))]
+    simp
+
+/-- The square-restricted anti-diagonal sum equals the one-dimensional convolution. -/
+lemma sum_square_freq (n m : ℕ) :
+    (∑ k1 ∈ Finset.range (n + 1), ∑ k2 ∈ Finset.range (n + 1),
+        if k1 + k2 = m then GW k1 * GW k2 else 0)
+      = goldbachConv n m := by
+  classical
+  rw [Finset.sum_congr rfl (fun k1 _ => sum_range_freq n k1 m (fun k2 => GW k1 * GW k2)),
+    ← Finset.sum_filter]
+  rfl
+
+/-- The product-form fiber sum equals the one-dimensional convolution. -/
+lemma sum_fiber_conv (n m : ℕ) :
+    (∑ p ∈ ((Finset.range (n + 1)).product (Finset.range (n + 1))).filter
+          (fun p => p.1 + p.2 = m), GW p.1 * GW p.2)
+      = goldbachConv n m := by
+  rw [Finset.sum_filter, Finset.product_eq_sprod,
+    Finset.sum_product (Finset.range (n + 1)) (Finset.range (n + 1))
+      (fun a => if a.1 + a.2 = m then GW a.1 * GW a.2 else 0)]
+  exact sum_square_freq n m
+
+/-- **Off-diagonal grouping.** The off-diagonal double sum of `floor_of_offdiag`
+regroups by target frequency `m − n` into the weighted Goldbach convolution times
+the restricted kernel `annInt`. -/
+lemma offdiag_sum_grouped (n : ℕ) (B : Set ℝ) :
+    (∑ k1 ∈ Finset.range (n + 1), ∑ k2 ∈ Finset.range (n + 1),
+        (if k1 + k2 = n then 0 else GW k1 * GW k2) *
+          (intervalIntegral (fun t => B.indicator (fun t => GE (((k1:ℝ) + (k2:ℝ) - (n:ℝ)) * t)) t)
+            (0:ℝ) 1 MeasureTheory.volume).re)
+      = ∑ m ∈ (Finset.range (2 * n + 1)).filter (fun m => m ≠ n),
+          goldbachConv n m * (annInt ((m:ℤ) - (n:ℤ)) B).re := by
+  classical
+  -- Step 1: rewrite each summand into the single-`if` form with `annInt`.
+  have hstep1 : ∀ k1 ∈ Finset.range (n + 1), ∀ k2 ∈ Finset.range (n + 1),
+      ((if k1 + k2 = n then 0 else GW k1 * GW k2) *
+          (intervalIntegral (fun t => B.indicator (fun t => GE (((k1:ℝ) + (k2:ℝ) - (n:ℝ)) * t)) t)
+            (0:ℝ) 1 MeasureTheory.volume).re)
+        = (if k1 + k2 = n then 0
+            else GW k1 * GW k2 * (annInt ((k1 + k2 : ℤ) - (n:ℤ)) B).re) := by
+    intro k1 _ k2 _
+    by_cases h : k1 + k2 = n
+    · rw [if_pos h, if_pos h, zero_mul]
+    · rw [if_neg h, if_neg h]
+      congr 1
+      unfold annInt
+      push_cast
+      rfl
+  have hmaps : ∀ p ∈ (Finset.range (n + 1)).product (Finset.range (n + 1)),
+      p.1 + p.2 ∈ Finset.range (2 * n + 1) := fun p hp => by
+    have h1 := Finset.mem_product.mp hp
+    rcases h1 with ⟨h1a, h1b⟩
+    rw [Finset.mem_range] at h1a h1b ⊢
+    omega
+  rw [Finset.sum_congr rfl
+    (fun k1 hk1 => Finset.sum_congr rfl (fun k2 hk2 => hstep1 k1 hk1 k2 hk2))]
+  rw [← Finset.sum_product' (Finset.range (n + 1)) (Finset.range (n + 1))
+    (fun k1 k2 => if k1 + k2 = n then 0
+      else GW k1 * GW k2 * (annInt ((k1:ℤ) + (k2:ℤ) - (n:ℤ)) B).re), Finset.sum_filter]
+  refine (Finset.sum_fiberwise_of_maps_to hmaps (fun p => if p.1 + p.2 = n then 0
+    else GW p.1 * GW p.2 * (annInt ((p.1 + p.2 : ℤ) - (n:ℤ)) B).re)).symm.trans ?_
+  refine Finset.sum_congr rfl fun m _ => ?_
+  by_cases hmn : m = n
+  · rw [if_neg (by omega : ¬(m ≠ n))]
+    refine Finset.sum_eq_zero fun p hp => ?_
+    simp only [Finset.mem_filter, Finset.mem_product, Finset.mem_range] at hp
+    rw [if_pos (by omega : p.1 + p.2 = n)]
+  · rw [if_pos hmn]
+    rw [Finset.sum_congr rfl (fun p hp => by
+      simp only [Finset.mem_filter, Finset.mem_product, Finset.mem_range] at hp
+      have hfr : ((p.1:ℤ) + (p.2:ℤ)) = (m:ℤ) := by exact_mod_cast hp.2
+      rw [if_neg (by omega : p.1 + p.2 ≠ n), hfr]), ← sum_fiber_conv, ← Finset.sum_mul]
+
+end OffDiagGroup
+
 end OuterPhi
 
 
