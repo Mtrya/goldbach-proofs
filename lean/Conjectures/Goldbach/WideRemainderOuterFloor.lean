@@ -4720,6 +4720,105 @@ lemma measurableSet_outerAnnulus (n q a : ℕ) (hn : 2^63 ≤ n) (hq : 0 < q) :
     ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ))) hh' hHh]
   exact measurableSet_Ico.union measurableSet_Ioc
 
+/-- The coprime residues in `range (q+1)` are exactly those in `range q` (for `2 ≤ q`). -/
+lemma filter_coprime_range_succ (q : ℕ) (hq : 2 ≤ q) :
+    (Finset.range (q+1)).filter (fun a => Nat.Coprime a q)
+      = (Finset.range q).filter (fun a => Nat.Coprime a q) := by
+  apply Finset.ext
+  intro a
+  simp only [Finset.mem_filter, Finset.mem_range]
+  constructor
+  · rintro ⟨h1, hcop⟩
+    refine ⟨?_, hcop⟩
+    by_contra hge
+    push_neg at hge
+    have haq : a = q := by omega
+    rw [haq, Nat.coprime_self] at hcop
+    omega
+  · rintro ⟨h1, hcop⟩
+    exact ⟨by omega, hcop⟩
+
+/-- The twisted character sum over reduced residues equals the Ramanujan sum. -/
+lemma sum_GE_eq_csum (q m : ℕ) (hq : 2 ≤ q) :
+    (∑ a ∈ (Finset.range q).filter (fun a => Nat.Coprime a q), GE ((m:ℝ)*a/q))
+      = csum q m := by
+  classical
+  unfold csum
+  refine Finset.sum_bij (i := fun a _ => q - a) (hi := ?_) (i_inj := ?_) (i_surj := ?_)
+    (h := ?_)
+  · intro a ha
+    simp only [Finset.mem_filter, Finset.mem_range] at ha ⊢
+    obtain ⟨halt, hcop⟩ := ha
+    have hapos : 0 < a := by
+      by_contra h0
+      push_neg at h0
+      have ha0 : a = 0 := by omega
+      rw [ha0, Nat.coprime_zero_left] at hcop
+      omega
+    refine ⟨?_, (Nat.coprime_self_sub_left (le_of_lt halt)).mpr hcop⟩
+    omega
+  · intro a₁ ha₁ a₂ ha₂ heq
+    simp only [Finset.mem_filter, Finset.mem_range] at ha₁ ha₂
+    omega
+  · intro b hb
+    simp only [Finset.mem_filter, Finset.mem_range] at hb
+    obtain ⟨hblt, hbcop⟩ := hb
+    have hbpos : 0 < b := by
+      by_contra h0
+      push_neg at h0
+      have hb0 : b = 0 := by omega
+      rw [hb0, Nat.coprime_zero_left] at hbcop
+      omega
+    refine ⟨q - b, ?_, ?_⟩
+    · exact Finset.mem_filter.mpr ⟨Finset.mem_range.mpr (by omega),
+        (Nat.coprime_self_sub_left (le_of_lt hblt)).mpr hbcop⟩
+    · show q - (q - b) = b
+      omega
+  · intro a ha
+    simp only [Finset.mem_filter, Finset.mem_range] at ha
+    obtain ⟨halt, _⟩ := ha
+    have hcast : ((q - a:ℕ):ℝ) = (q:ℝ) - (a:ℝ) := Nat.cast_sub (by omega)
+    have hq0 : ((q:ℝ)) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
+    have hkey : -((m:ℝ))*((q - a:ℕ):ℝ)/((q:ℝ)) = (m:ℝ)*a/(q:ℝ) + (-(m:ℝ)) := by
+      rw [hcast]
+      field_simp [hq0]
+      ring
+    rw [hkey, ← GE_add, GE_neg, GE_nat_eq_one, inv_one, mul_one]
+
+/-- Twisted character sum over reduced residues for an integer frequency. -/
+lemma sum_GE_int_eq_csum (q : ℕ) (hq : 2 ≤ q) (j : ℤ) :
+    (∑ a ∈ (Finset.range q).filter (fun a => Nat.Coprime a q), GE ((j:ℝ)*a/q))
+      = csum q j.natAbs := by
+  by_cases hj : 0 ≤ j
+  · have habs : ((j.natAbs:ℕ):ℝ) = (j:ℝ) := by
+      have h1 : ((j.natAbs:ℕ):ℤ) = j := Int.natAbs_of_nonneg hj
+      rw [show ((j.natAbs:ℕ):ℝ) = (((j.natAbs:ℕ):ℤ):ℝ) from
+        (Int.cast_natCast (R := ℝ) j.natAbs).symm, h1]
+    rw [← sum_GE_eq_csum q j.natAbs hq, habs]
+  · have hjlt : j < 0 := by omega
+    have habs : (j:ℝ) = -(((j.natAbs:ℕ):ℝ)) := by
+      have h2 : (j.natAbs : ℤ) = -j := by
+        rw [← Int.natAbs_neg, Int.natAbs_of_nonneg (by omega : (0:ℤ) ≤ -j)]
+      have hcast' : ((j.natAbs:ℕ):ℝ) = ((j.natAbs:ℤ):ℝ) :=
+        (Int.cast_natCast (R := ℝ) j.natAbs).symm
+      rw [hcast', ← Int.cast_neg, Int.cast_inj, h2, neg_neg]
+    unfold csum
+    refine Finset.sum_congr rfl (fun a _ => ?_)
+    rw [habs]
+
+/-- The inner annulus radius is at most the outer one (same denominator). -/
+lemma annulus_radii_le (n q : ℕ) (hn : 2^63 ≤ n) (hq : 0 < q) :
+    (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)) ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) := by
+  have hqn1 : (0:ℝ) < (q:ℝ)*(n:ℝ) :=
+    mul_pos (by exact_mod_cast hq)
+      (by exact_mod_cast (lt_of_lt_of_le (by norm_num : (0:ℕ) < 2^63) hn))
+  have hinv : (0:ℝ) < 1/((q:ℝ)*(n:ℝ)) := div_pos zero_lt_one hqn1
+  have h := Qf_sixth_le_Hf n hn
+  calc (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ))
+      = (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ) * (1/((q:ℝ)*(n:ℝ))) := by ring
+    _ ≤ (Hf n:ℝ) * (1/((q:ℝ)*(n:ℝ))) := mul_le_mul_of_nonneg_right h (le_of_lt hinv)
+    _ = (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) := by ring
+
 end OuterPhi
 
 
