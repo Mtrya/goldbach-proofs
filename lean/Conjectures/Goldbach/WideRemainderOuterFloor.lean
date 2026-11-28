@@ -4404,5 +4404,324 @@ lemma remainder_inner_eq_outer_union (n : ℕ) (hn : 2^63 ≤ n) :
 
 end OuterUnion
 
+/-! ### Outer Phi: oscillatory integrals over the outer annulus union -/
+
+section OuterPhi
+
+/-- Unweighted oscillatory set integral `∫₀¹ 1_S(t)·GE(j·t) dt`. -/
+noncomputable def annInt (j : ℤ) (S : Set ℝ) : ℂ :=
+  intervalIntegral (fun t => S.indicator (fun t' => GE ((j:ℝ)*t')) t) 0 1
+    MeasureTheory.volume
+
+lemma continuous_GE_int_mul (j : ℤ) : Continuous (fun t => GE ((j:ℝ)*t)) :=
+  continuous_GE.comp (continuous_const.mul continuous_id)
+
+/-- Additivity of `annInt` over disjoint measurable sets. -/
+lemma annInt_add (j : ℤ) {A B : Set ℝ} (hA : MeasurableSet A) (hB : MeasurableSet B)
+    (hd : Disjoint A B) : annInt j (A ∪ B) = annInt j A + annInt j B := by
+  have hphi : Continuous (fun t => GE ((j:ℝ)*t)) := continuous_GE_int_mul j
+  have hint1 := intervalIntegrable_indicator_continuous hphi hA
+  have hint2 := intervalIntegrable_indicator_continuous hphi hB
+  have hpt : Set.EqOn (fun t => (A ∪ B).indicator (fun t' => GE ((j:ℝ)*t')) t)
+      (fun t => A.indicator (fun t' => GE ((j:ℝ)*t')) t
+        + B.indicator (fun t' => GE ((j:ℝ)*t')) t)
+      (Set.uIcc (0:ℝ) 1) := by
+    intro t _
+    show (A ∪ B).indicator (fun t' => GE ((j:ℝ)*t')) t
+      = A.indicator (fun t' => GE ((j:ℝ)*t')) t + B.indicator (fun t' => GE ((j:ℝ)*t')) t
+    by_cases h1 : t ∈ A
+    · by_cases h2 : t ∈ B
+      · exact absurd h1 (fun h1' => Set.disjoint_left.mp hd h1' h2)
+      · rw [Set.indicator_of_mem (Set.mem_union_left _ h1), Set.indicator_of_mem h1,
+          Set.indicator_of_notMem h2, add_zero]
+    · by_cases h2 : t ∈ B
+      · rw [Set.indicator_of_mem (Set.mem_union_right _ h2), Set.indicator_of_notMem h1,
+          Set.indicator_of_mem h2, zero_add]
+      · rw [Set.indicator_of_notMem (by simp [h1, h2] : t ∉ A ∪ B),
+          Set.indicator_of_notMem h1, Set.indicator_of_notMem h2, zero_add]
+  unfold annInt
+  rw [intervalIntegral.integral_congr hpt, intervalIntegral.integral_add hint1 hint2]
+
+lemma annInt_empty (j : ℤ) : annInt j (∅ : Set ℝ) = 0 := by
+  unfold annInt
+  have h0 : (fun t => (∅ : Set ℝ).indicator (fun t' => GE ((j:ℝ)*t')) t)
+      = fun _ => (0 : ℂ) := by
+    funext t; simp
+  rw [h0, intervalIntegral.integral_zero]
+
+/-- Additivity of `annInt` over finite disjoint unions. -/
+lemma annInt_biUnion_disjoint (j : ℤ) {ι : Type*} [DecidableEq ι] (S : ι → Set ℝ)
+    (s : Finset ι) (hS : ∀ i ∈ s, MeasurableSet (S i))
+    (hd : ∀ i ∈ s, ∀ i' ∈ s, i ≠ i' → Disjoint (S i) (S i')) :
+    annInt j (⋃ i ∈ s, S i) = ∑ i ∈ s, annInt j (S i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+    have hu : (⋃ i ∈ (∅ : Finset ι), S i) = (∅ : Set ℝ) := by simp
+    rw [hu, annInt_empty, Finset.sum_empty]
+  | @insert i s hi ih =>
+    have hiS : MeasurableSet (S i) := hS i (Finset.mem_insert_self i s)
+    have hsU : MeasurableSet (⋃ j' ∈ s, S j') :=
+      Finset.measurableSet_biUnion s (fun j' hj => hS j' (Finset.mem_insert_of_mem hj))
+    have hdisj : Disjoint (S i) (⋃ j' ∈ s, S j') := by
+      rw [Set.disjoint_left]
+      intro t ht1 ht2
+      simp only [Set.mem_iUnion] at ht2
+      obtain ⟨j', hj', htj⟩ := ht2
+      exact (Set.disjoint_left.mp
+        (hd i (Finset.mem_insert_self i s) j' (Finset.mem_insert_of_mem hj')
+          (fun hji => hi (hji ▸ hj'))) ht1 htj)
+    have hrest : ∀ j' ∈ s, MeasurableSet (S j') :=
+      fun j' hj => hS j' (Finset.mem_insert_of_mem hj)
+    have hhd : ∀ j' ∈ s, ∀ k ∈ s, j' ≠ k → Disjoint (S j') (S k) := fun j' hj k hk hjk =>
+      hd j' (Finset.mem_insert_of_mem hj) k (Finset.mem_insert_of_mem hk) hjk
+    rw [Finset.set_biUnion_insert, annInt_add j hiS hsU hdisj, ih hrest hhd, Finset.sum_insert hi]
+
+/-- Integrands agreeing a.e. on `(a,b]` have equal integrals over `a..b` (for `a ≤ b`). -/
+lemma integral_congr_ae_interval {φ ψ : ℝ → ℂ} {a b : ℝ} (hab : a ≤ b)
+    (hae : ∀ᵐ t ∂MeasureTheory.volume, t ∈ Set.Ioc a b → φ t = ψ t) :
+    (∫ t in a..b, φ t) = (∫ t in a..b, ψ t) :=
+  intervalIntegral.integral_congr_ae' hae (by
+    rw [MeasureTheory.ae_iff]
+    have hE : Set.Ioc b a = (∅ : Set ℝ) := Set.Ioc_eq_empty (by linarith)
+    simp [hE])
+
+/-- Integrands agreeing a.e. on `(0,1]` have equal integrals over `0..1`. -/
+lemma integral_congr_ae_unit {φ ψ : ℝ → ℂ}
+    (hae : ∀ᵐ t ∂MeasureTheory.volume, t ∈ Set.Ioc (0:ℝ) 1 → φ t = ψ t) :
+    (∫ t in (0:ℝ)..1, φ t) = (∫ t in (0:ℝ)..1, ψ t) :=
+  integral_congr_ae_interval (by norm_num) hae
+
+/-- An a.e. statement on `(a,b]` whose failure set lies in a finite set. -/
+lemma ae_interval_of_finite_bad {P : ℝ → Prop} {a b : ℝ} {bad : Set ℝ} (hbad : bad.Finite)
+    (h : ∀ t ∈ Set.Ioc a b, t ∉ bad → P t) :
+    ∀ᵐ t ∂MeasureTheory.volume, t ∈ Set.Ioc a b → P t := by
+  rw [MeasureTheory.ae_iff]
+  refine MeasureTheory.measure_mono_null ?_ (hbad.measure_zero MeasureTheory.volume)
+  intro t ht
+  simp only [Set.mem_ofPred_eq] at ht
+  push_neg at ht
+  obtain ⟨htab, hnq⟩ := ht
+  by_contra hnb
+  exact hnq (h t htab hnb)
+
+/-- For `0 ≤ u ≤ v ≤ 1`, the indicator integral of the open arm `(u,v)` over `[0,1]`
+equals the interval integral over `[u,v]`. -/
+lemma integral_Ioo_arm (φ : ℝ → ℂ) (u v : ℝ) (huv : u ≤ v) (hu : 0 ≤ u) (hv : v ≤ 1)
+    (hφ : Continuous φ) :
+    (∫ t in (0:ℝ)..1, (Set.Ioo u v).indicator φ t) = (∫ t in u..v, φ t) := by
+  classical
+  have hint : IntervalIntegrable (fun t => (Set.Ioo u v).indicator φ t)
+      MeasureTheory.volume (0:ℝ) 1 :=
+    intervalIntegrable_indicator_continuous hφ measurableSet_Ioo
+  have hu1 : Set.uIcc (0:ℝ) u ⊆ Set.uIcc (0:ℝ) 1 := by
+    intro x hx
+    rw [Set.uIcc_of_le hu] at hx
+    rw [Set.uIcc_of_le (by norm_num : (0:ℝ) ≤ 1)]
+    exact ⟨hx.1, le_trans hx.2 (le_trans huv hv)⟩
+  have hu11 : Set.uIcc u (1:ℝ) ⊆ Set.uIcc (0:ℝ) 1 := by
+    intro x hx
+    rw [Set.uIcc_of_le (le_trans huv hv)] at hx
+    rw [Set.uIcc_of_le (by norm_num : (0:ℝ) ≤ 1)]
+    exact ⟨le_trans hu hx.1, hx.2⟩
+  have hvmid : Set.uIcc u v ⊆ Set.uIcc (0:ℝ) 1 := by
+    intro x hx
+    rw [Set.uIcc_of_le huv] at hx
+    rw [Set.uIcc_of_le (by norm_num : (0:ℝ) ≤ 1)]
+    exact ⟨le_trans hu hx.1, le_trans hx.2 hv⟩
+  have hv1 : Set.uIcc v (1:ℝ) ⊆ Set.uIcc (0:ℝ) 1 := by
+    intro x hx
+    rw [Set.uIcc_of_le hv] at hx
+    rw [Set.uIcc_of_le (by norm_num : (0:ℝ) ≤ 1)]
+    exact ⟨le_trans (le_trans hu huv) hx.1, hx.2⟩
+  have hsplit := intervalIntegral.integral_add_adjacent_intervals (hint.mono_set hu1)
+    (hint.mono_set hu11)
+  have hsplit2 := intervalIntegral.integral_add_adjacent_intervals (hint.mono_set hvmid)
+    (hint.mono_set hv1)
+  have hleft : (∫ t in (0:ℝ)..u, (Set.Ioo u v).indicator φ t) = 0 := by
+    have hpt : ∀ t ∈ Set.uIcc (0:ℝ) u, (Set.Ioo u v).indicator φ t = (0:ℂ) := by
+      intro t ht
+      rw [Set.uIcc_of_le hu] at ht
+      have hnot : t ∉ Set.Ioo u v := by
+        intro hmem
+        have h1 : u < t := hmem.1
+        have h2 : t < v := hmem.2
+        have h3 : t ≤ u := ht.2
+        linarith
+      exact Set.indicator_of_notMem hnot φ
+    rw [intervalIntegral.integral_congr (f := fun t => (Set.Ioo u v).indicator φ t)
+      (g := fun _ => (0:ℂ)) hpt, intervalIntegral.integral_zero]
+  have hright : (∫ t in v..(1:ℝ), (Set.Ioo u v).indicator φ t) = 0 := by
+    have hpt : ∀ t ∈ Set.uIcc v (1:ℝ), (Set.Ioo u v).indicator φ t = (0:ℂ) := by
+      intro t ht
+      rw [Set.uIcc_of_le hv] at ht
+      have hnot : t ∉ Set.Ioo u v := by
+        intro hmem
+        have h1 : u < t := hmem.1
+        have h2 : t < v := hmem.2
+        have h3 : v ≤ t := ht.1
+        linarith
+      exact Set.indicator_of_notMem hnot φ
+    rw [intervalIntegral.integral_congr (f := fun t => (Set.Ioo u v).indicator φ t)
+      (g := fun _ => (0:ℂ)) hpt, intervalIntegral.integral_zero]
+  have hmid : (∫ t in u..v, (Set.Ioo u v).indicator φ t) = (∫ t in u..v, φ t) := by
+    refine integral_congr_ae_interval huv ?_
+    refine ae_interval_of_finite_bad (Set.Finite.insert u (Set.finite_singleton v)) (by
+      intro t htv hnb
+      simp only [Set.mem_Ioc] at htv
+      have h1 : u < t := htv.1
+      have h2 : t ≤ v := htv.2
+      have hne : t ≠ v := fun heq => hnb (by simp [heq])
+      exact Set.indicator_of_mem (show t ∈ Set.Ioo u v from
+        ⟨h1, lt_of_le_of_ne h2 hne⟩) φ)
+  calc (∫ t in (0:ℝ)..1, (Set.Ioo u v).indicator φ t)
+      = (∫ t in (0:ℝ)..u, (Set.Ioo u v).indicator φ t)
+          + (∫ t in u..(1:ℝ), (Set.Ioo u v).indicator φ t) := hsplit.symm
+    _ = (∫ t in (0:ℝ)..u, (Set.Ioo u v).indicator φ t)
+          + ((∫ t in u..v, (Set.Ioo u v).indicator φ t)
+              + (∫ t in v..(1:ℝ), (Set.Ioo u v).indicator φ t)) := by
+        rw [hsplit2]
+    _ = (∫ t in u..v, φ t) := by rw [hleft, hright, hmid]; ring
+
+/-- Half-open arm `[u, v)` has the same integral as the open arm `(u, v)`. -/
+lemma integral_Ico_arm (φ : ℝ → ℂ) (u v : ℝ) (huv : u ≤ v) (hu : 0 ≤ u) (hv : v ≤ 1)
+    (hφ : Continuous φ) :
+    (∫ t in (0:ℝ)..1, (Set.Ico u v).indicator φ t) = (∫ t in u..v, φ t) := by
+  have hae : ∀ᵐ t ∂MeasureTheory.volume, t ∈ Set.Ioc (0:ℝ) 1 →
+      (Set.Ico u v).indicator φ t = (Set.Ioo u v).indicator φ t := by
+    refine ae_interval_of_finite_bad (Set.finite_singleton u) (by
+      intro t _ht01 hnb
+      by_cases hmem : t ∈ Set.Ico u v
+      · have hu2 : u ≠ t := fun he => hnb (by rw [he]; simp)
+        have hioo : t ∈ Set.Ioo u v := ⟨lt_of_le_of_ne hmem.1 hu2, hmem.2⟩
+        rw [Set.indicator_of_mem hmem φ, Set.indicator_of_mem hioo φ]
+      · have hnot : t ∉ Set.Ioo u v := fun hmem' => hmem ⟨le_of_lt hmem'.1, hmem'.2⟩
+        rw [Set.indicator_of_notMem hmem φ, Set.indicator_of_notMem hnot φ])
+  rw [integral_congr_ae_unit hae]
+  exact integral_Ioo_arm φ u v huv hu hv hφ
+
+/-- Half-open arm `(u, v]` has the same integral as the open arm `(u, v)`. -/
+lemma integral_Ioc_arm (φ : ℝ → ℂ) (u v : ℝ) (huv : u ≤ v) (hu : 0 ≤ u) (hv : v ≤ 1)
+    (hφ : Continuous φ) :
+    (∫ t in (0:ℝ)..1, (Set.Ioc u v).indicator φ t) = (∫ t in u..v, φ t) := by
+  have hae : ∀ᵐ t ∂MeasureTheory.volume, t ∈ Set.Ioc (0:ℝ) 1 →
+      (Set.Ioc u v).indicator φ t = (Set.Ioo u v).indicator φ t := by
+    refine ae_interval_of_finite_bad (Set.finite_singleton v) (by
+      intro t _ht01 hnb
+      by_cases hmem : t ∈ Set.Ioc u v
+      · have hv2 : t ≠ v := fun he => hnb (by rw [he]; simp)
+        have hioo : t ∈ Set.Ioo u v := ⟨hmem.1, lt_of_le_of_ne hmem.2 hv2⟩
+        rw [Set.indicator_of_mem hmem φ, Set.indicator_of_mem hioo φ]
+      · have hnot : t ∉ Set.Ioo u v := fun hmem' => hmem ⟨hmem'.1, le_of_lt hmem'.2⟩
+        rw [Set.indicator_of_notMem hmem φ, Set.indicator_of_notMem hnot φ])
+  rw [integral_congr_ae_unit hae]
+  exact integral_Ioo_arm φ u v huv hu hv hφ
+
+/-- `y < |x|` in terms of one-sided bounds. -/
+lemma abs_gt_iff' (x y : ℝ) : y < |x| ↔ x < -y ∨ y < x := by
+  have h : y < |x| ↔ ¬(|x| ≤ y) := by
+    constructor
+    · intro h1 h2; linarith
+    · intro h1; exact lt_of_not_ge h1
+  rw [h, abs_le, not_and_or, not_le, not_le]
+
+/-- The annulus `{h' < |t-c| ≤ H'}` is the union of the two half-open arms. -/
+lemma annulus_set_eq (c H' h' : ℝ) (hh' : 0 ≤ h') (hHh : h' ≤ H') :
+    ({t : ℝ | h' < |t - c| ∧ |t - c| ≤ H'} : Set ℝ)
+      = Set.Ico (c - H') (c - h') ∪ Set.Ioc (c + h') (c + H') := by
+  ext t
+  simp only [Set.mem_ofPred_eq, Set.mem_union, Set.mem_Ico, Set.mem_Ioc, abs_gt_iff', abs_le]
+  constructor
+  · rintro ⟨(h1 | h1), h2⟩
+    · exact Or.inl ⟨by linarith, by linarith⟩
+    · exact Or.inr ⟨by linarith, by linarith⟩
+  · rintro (⟨h1, h2⟩ | ⟨h1, h2⟩)
+    · refine ⟨Or.inl (by linarith), ⟨by linarith, ?_⟩⟩
+      have hH := hHh
+      have hh := hh'
+      linarith
+    · refine ⟨Or.inr (by linarith), ⟨?_, by linarith⟩⟩
+      have hH := hHh
+      have hh := hh'
+      linarith
+
+/-- The oscillatory integral over an annulus is the sum of the two arm integrals. -/
+lemma integral_annulus_arms (φ : ℝ → ℂ) (c H' h' : ℝ)
+    (hh' : 0 ≤ h') (hHh : h' ≤ H') (h0 : 0 ≤ c - H') (h1 : c + H' ≤ 1)
+    (hφ : Continuous φ) :
+    (∫ t in (0:ℝ)..1, ({t : ℝ | h' < |t - c| ∧ |t - c| ≤ H'}).indicator φ t)
+      = (∫ t in (c - H')..(c - h'), φ t) + (∫ t in (c + h')..(c + H'), φ t) := by
+  classical
+  rw [annulus_set_eq c H' h' hh' hHh]
+  have hmeas1 : MeasurableSet (Set.Ico (c - H') (c - h')) := measurableSet_Ico
+  have hmeas2 : MeasurableSet (Set.Ioc (c + h') (c + H')) := measurableSet_Ioc
+  have hdisj : Disjoint (Set.Ico (c - H') (c - h')) (Set.Ioc (c + h') (c + H')) := by
+    rw [Set.disjoint_left]
+    intro t h1 h2
+    simp only [Set.mem_Ico, Set.mem_Ioc] at h1 h2
+    linarith
+  have hpt : Set.EqOn
+      (fun t => (Set.Ico (c - H') (c - h') ∪ Set.Ioc (c + h') (c + H')).indicator φ t)
+      (fun t => (Set.Ico (c - H') (c - h')).indicator φ t
+        + (Set.Ioc (c + h') (c + H')).indicator φ t)
+      (Set.uIcc (0:ℝ) 1) := fun t _ => congrFun (Set.indicator_union_of_disjoint hdisj φ) t
+  rw [intervalIntegral.integral_congr hpt,
+    intervalIntegral.integral_add
+      (intervalIntegrable_indicator_continuous hφ hmeas1)
+      (intervalIntegrable_indicator_continuous hφ hmeas2)]
+  rw [integral_Ico_arm φ (c - H') (c - h') (by linarith) h0 (by linarith) hφ,
+    integral_Ioc_arm φ (c + h') (c + H') (by linarith) (by linarith) h1 hφ]
+
+lemma Qf_pos (n : ℕ) : 0 < Qf n := by
+  unfold Qf
+  rw [pow_two]
+  exact Nat.mul_pos (Nat.log_pos (by norm_num) (by omega))
+    (Nat.log_pos (by norm_num) (by omega))
+
+/-- The inner annulus radius is bounded by the outer one: `Q·n^{1/6} ≤ H`. -/
+lemma Qf_sixth_le_Hf (n : ℕ) (hn : 2^63 ≤ n) :
+    (Qf n:ℝ) * (n:ℝ)^(1/6:ℝ) ≤ (Hf n:ℝ) := by
+  have hQf : (0:ℝ) < (Qf n:ℝ) := by exact_mod_cast Qf_pos n
+  have hQ1 : (1:ℝ) ≤ (Q1f n:ℝ) :=
+    le_trans (by norm_num : (1:ℝ) ≤ 4) (by exact_mod_cast (four_lt_Q1f n hn).le)
+  have hcub : (n:ℝ)^(1/3:ℝ) < (Q1f n:ℝ) + 1 := Nat.lt_floor_add_one _
+  have hn2 : (2:ℕ) ≤ n := le_trans (by norm_num : (2:ℕ) ≤ 2^63) hn
+  have hn1 : (1:ℝ) ≤ (n:ℝ) := le_trans (by norm_num : (1:ℝ) ≤ 2) (by exact_mod_cast hn2)
+  have hsixth : (n:ℝ)^(1/6:ℝ) ≤ (n:ℝ)^(1/3:ℝ) :=
+    Real.rpow_le_rpow_of_exponent_le hn1 (by norm_num)
+  have h2 : (n:ℝ)^(1/3:ℝ) ≤ 2*(Q1f n:ℝ) := by linarith
+  have hHf : (Hf n:ℝ) = 256*(Q1f n:ℝ)*(Qf n:ℝ) := by rw [Hf]; push_cast; ring
+  have hprod : (0:ℝ) ≤ (Q1f n:ℝ)*(Qf n:ℝ) :=
+    mul_nonneg (le_trans (by norm_num : (0:ℝ) ≤ 1) hQ1) (le_of_lt hQf)
+  calc (Qf n:ℝ) * (n:ℝ)^(1/6:ℝ) ≤ (Qf n:ℝ) * (n:ℝ)^(1/3:ℝ) :=
+      mul_le_mul_of_nonneg_left hsixth (le_of_lt hQf)
+    _ ≤ (Qf n:ℝ) * (2*(Q1f n:ℝ)) := mul_le_mul_of_nonneg_left h2 (le_of_lt hQf)
+    _ = 2*((Q1f n:ℝ)*(Qf n:ℝ)) := by ring
+    _ ≤ 256*((Q1f n:ℝ)*(Qf n:ℝ)) := by nlinarith
+    _ = (Hf n:ℝ) := by rw [hHf]; ring
+
+lemma measurableSet_outerAnnulus (n q a : ℕ) (hn : 2^63 ≤ n) (hq : 0 < q) :
+    MeasurableSet (outerAnnulus n q a) := by
+  have hqn1 : (0:ℝ) < (q:ℝ)*(n:ℝ) :=
+    mul_pos (by exact_mod_cast hq)
+      (by exact_mod_cast (lt_of_lt_of_le (by norm_num : (0:ℕ) < 2^63) hn))
+  have hh' : 0 ≤ (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)) :=
+    div_nonneg (mul_nonneg (Nat.cast_nonneg _) (Real.rpow_nonneg (Nat.cast_nonneg n) _))
+      (le_of_lt hqn1)
+  have hHh : (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ)) ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) := by
+    have hinv : (0:ℝ) < 1/((q:ℝ)*(n:ℝ)) := div_pos zero_lt_one hqn1
+    have h := Qf_sixth_le_Hf n hn
+    calc (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ))
+        = (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ) * (1/((q:ℝ)*(n:ℝ))) := by ring
+      _ ≤ (Hf n:ℝ) * (1/((q:ℝ)*(n:ℝ))) := mul_le_mul_of_nonneg_right h (le_of_lt hinv)
+      _ = (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) := by ring
+  unfold outerAnnulus
+  rw [annulus_set_eq ((a:ℝ)/q) ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)))
+    ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)/((q:ℝ)*(n:ℝ))) hh' hHh]
+  exact measurableSet_Ico.union measurableSet_Ioc
+
+end OuterPhi
+
+
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
   sorry
