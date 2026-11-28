@@ -4181,5 +4181,228 @@ lemma outerDisk_disjoint (n : ℕ) (hn : 2^63 ≤ n) (q q' a a' : ℕ)
 
 end OuterDisk
 
+/-! ### Outer union: `remainder ∖ inner` is the disjoint union of outer annuli -/
+
+section OuterUnion
+
+/-- Coprime fractions in lowest terms are unique: if `a/q = a'/q'` with `a ⊥ q`,
+`a' ⊥ q'` and `q, q' > 0`, then `q = q'` and `a = a'`. -/
+lemma eq_of_coprime_frac_eq {q a q' a' : ℕ} (hq0 : 0 < q) (hq0' : 0 < q')
+    (hcop : Nat.Coprime a q) (hcop' : Nat.Coprime a' q')
+    (heq : (a:ℝ)/(q:ℝ) = (a':ℝ)/(q':ℝ)) : q = q' ∧ a = a' := by
+  have hq0r : (0:ℝ) < (q:ℝ) := by exact_mod_cast hq0
+  have hq0'r : (0:ℝ) < (q':ℝ) := by exact_mod_cast hq0'
+  have hqz : (q:ℝ) ≠ 0 := by linarith
+  have hq'z : (q':ℝ) ≠ 0 := by linarith
+  have hcross : (a:ℝ)*(q':ℝ) = (a':ℝ)*(q:ℝ) := by
+    have e1 : ((a:ℝ)/(q:ℝ)) * ((q:ℝ)*(q':ℝ)) = (a:ℝ)*(q':ℝ) := by
+      rw [← mul_assoc, div_mul_cancel₀ (a:ℝ) hqz]
+    have e2 : ((a':ℝ)/(q':ℝ)) * ((q:ℝ)*(q':ℝ)) = (a':ℝ)*(q:ℝ) := by
+      rw [mul_comm (q:ℝ) (q':ℝ), ← mul_assoc, div_mul_cancel₀ (a':ℝ) hq'z]
+    rw [← e1, ← e2, heq]
+  have hnat : a * q' = a' * q := by exact_mod_cast hcross
+  have hd1 : q ∣ q' := by
+    have hprod : q ∣ q' * a := by
+      rw [mul_comm q' a, hnat, mul_comm a' q]
+      exact ⟨a', rfl⟩
+    exact (Nat.Coprime.dvd_mul_right (k := q) (n := a) (m := q')
+      (Nat.coprime_comm.mp hcop)).mp hprod
+  have hd2 : q' ∣ q := by
+    have hprod : q' ∣ q * a' := by
+      rw [mul_comm q a', ← hnat, mul_comm a q']
+      exact ⟨a, rfl⟩
+    exact (Nat.Coprime.dvd_mul_right (k := q') (n := a') (m := q)
+      (Nat.coprime_comm.mp hcop')).mp hprod
+  have hqeq := Nat.dvd_antisymm hd1 hd2
+  rw [← hqeq] at hnat
+  exact ⟨hqeq, Nat.eq_of_mul_eq_mul_right hq0 hnat⟩
+
+/-- A point of the outer annulus of `a/q` is farther than `B/(q'n)` from any *different*
+Farey fraction `a'/q'`, provided `H·q' + B·q < n`. -/
+lemma annulus_excludes_ne (n : ℕ) (hn : 2^63 ≤ n) (q a q' a' : ℕ)
+    (hq0 : 0 < q) (hq0' : 0 < q') (hq1 : q ≤ Q1f n)
+    (hne : (a:ℝ)/(q:ℝ) ≠ (a':ℝ)/(q':ℝ))
+    (t : ℝ) (hclose : |t - (a:ℝ)/(q:ℝ)| ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ)))
+    (B : ℝ) (hrad' : |t - (a':ℝ)/(q':ℝ)| ≤ B/((q':ℝ)*(n:ℝ)))
+    (hbound : (Hf n:ℝ)*(q':ℝ) + B*(q:ℝ) < (n:ℝ)) : False := by
+  have hq0r : (0:ℝ) < (q:ℝ) := by exact_mod_cast hq0
+  have hq0'r : (0:ℝ) < (q':ℝ) := by exact_mod_cast hq0'
+  have hn0 : (0:ℝ) < (n:ℝ) := by
+    exact_mod_cast lt_of_lt_of_le (by norm_num : 0 < 2^63) hn
+  have hnz : (n:ℝ) ≠ 0 := by linarith
+  have hsp := one_div_mul_le_abs_sub_frac q q' a a' hq0 hq0' hne
+  have htri : |(a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)|
+      ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + B/((q':ℝ)*(n:ℝ)) := by
+    have h2 : (a:ℝ)/(q:ℝ) - (a':ℝ)/(q':ℝ)
+        = ((a:ℝ)/(q:ℝ) - t) + (t - (a':ℝ)/(q':ℝ)) := by linarith
+    rw [h2]
+    refine le_trans (abs_add_le _ _) ?_
+    rw [abs_sub_comm ((a:ℝ)/(q:ℝ)) t]
+    linarith
+  have hlt : (Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + B/((q':ℝ)*(n:ℝ)) < 1/((q:ℝ)*(q':ℝ)) := by
+    have hcross : ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + B/((q':ℝ)*(n:ℝ))) * ((q:ℝ)*(q':ℝ)*(n:ℝ))
+        = (Hf n:ℝ)*(q':ℝ) + B*(q:ℝ) := by
+      field_simp
+    have hden : (0:ℝ) < (q:ℝ)*(q':ℝ)*(n:ℝ) := mul_pos (mul_pos hq0r hq0'r) hn0
+    have hstep : ((Hf n:ℝ)/((q:ℝ)*(n:ℝ)) + B/((q':ℝ)*(n:ℝ))) * ((q:ℝ)*(q':ℝ)*(n:ℝ))
+        < (n:ℝ) := by
+      rw [hcross]
+      exact hbound
+    have hconv : ((n:ℝ)) / (((q:ℝ)*(q':ℝ))*(n:ℝ)) = 1/((q:ℝ)*(q':ℝ)) := by
+      rw [mul_comm ((q:ℝ)*(q':ℝ)) ((n:ℝ)), div_mul_eq_div_div, div_self hnz, one_div]
+    have h2 := (lt_div_iff₀ hden).mpr hstep
+    rw [hconv] at h2
+    exact h2
+  linarith
+
+/-- Exclusion of a competing fraction: either the fractions coincide (and the coprime
+witnesses force `q' = q`, `a' = a`, contradicting `hsame`), or the spacing bound
+`1/(qq') ≤ |a/q − a'/q'|` combined with `H·q' + B·q < n` gives a contradiction. -/
+lemma annulus_excludes (n : ℕ) (hn : 2^63 ≤ n) (q a q' a' : ℕ)
+    (hq0 : 0 < q) (_hqQ : Qf n < q) (hq1 : q ≤ Q1f n) (hcop : Nat.Coprime a q)
+    (hq0' : 0 < q') (_hq1' : 1 ≤ q') (hcop' : Nat.Coprime a' q')
+    (t : ℝ) (hclose : |t - (a:ℝ)/(q:ℝ)| ≤ (Hf n:ℝ)/((q:ℝ)*(n:ℝ)))
+    (B : ℝ) (hrad' : |t - (a':ℝ)/(q':ℝ)| ≤ B/((q':ℝ)*(n:ℝ)))
+    (hbound : (Hf n:ℝ)*(q':ℝ) + B*(q:ℝ) < (n:ℝ))
+    (hsame : q' = q → a' = a → False) : False := by
+  by_cases hne : (a:ℝ)/(q:ℝ) = (a':ℝ)/(q':ℝ)
+  · obtain ⟨hqq, haa⟩ := eq_of_coprime_frac_eq hq0 hq0' hcop hcop' hne
+    exact hsame hqq.symm haa.symm
+  · exact annulus_excludes_ne n hn q a q' a' hq0 hq0' hq1 hne t hclose B hrad' hbound
+
+/-- Index set of outer annuli: coprime pairs `(q, a)` with `Q < q ≤ Q₁` and `a ≤ q`. -/
+noncomputable def outerIndex (n : ℕ) : Finset (ℕ × ℕ) :=
+  (Finset.Icc (Qf n + 1) (Q1f n)).biUnion fun q =>
+    ((Finset.range (q + 1)).filter fun a => Nat.Coprime a q).image fun a => (q, a)
+
+lemma mem_outerIndex_iff {n : ℕ} {p : ℕ × ℕ} :
+    p ∈ outerIndex n ↔ Qf n < p.1 ∧ p.1 ≤ Q1f n ∧ p.2 ≤ p.1 ∧ Nat.Coprime p.2 p.1 := by
+  rcases p with ⟨q, a⟩
+  unfold outerIndex
+  simp only [Finset.mem_biUnion, Finset.mem_image, Finset.mem_filter, Finset.mem_range,
+    Finset.mem_Icc, Prod.mk.injEq]
+  constructor
+  · rintro ⟨q', ⟨hq1, hq2⟩, a', ⟨hr, hcop⟩, heq⟩
+    obtain ⟨rfl, rfl⟩ := heq
+    exact ⟨hq1, hq2, Nat.lt_succ_iff.mp hr, hcop⟩
+  · rintro ⟨h1, h2, h3, h4⟩
+    exact ⟨q, ⟨h1, h2⟩, a, ⟨by omega, h4⟩, ⟨rfl, rfl⟩⟩
+
+/-- **Outer union.** For `n ≥ 2^63`, the outer target `remainder ∖ inner` is exactly the
+union of the outer annuli over coprime pairs with `Q < q ≤ Q₁`. -/
+lemma remainder_inner_eq_outer_union (n : ℕ) (hn : 2^63 ≤ n) :
+    remainderRegion n \ innerRegion n = ⋃ p ∈ outerIndex n, outerAnnulus n p.1 p.2 := by
+  ext t
+  constructor
+  · rintro ⟨hrem, hinner⟩
+    rw [remainder_eq] at hrem
+    obtain ⟨hwide, hnot⟩ := hrem
+    unfold wideArcsRegion at hwide
+    obtain ⟨q, a, hq1, hq2, ha, hcop, hrad⟩ := hwide
+    have hqQ : Qf n < q := by
+      by_contra hle
+      exact hnot (Or.inr ⟨q, a, hq1, le_of_not_gt hle, ha, hcop, hrad⟩)
+    have hidx : (q, a) ∈ outerIndex n :=
+      mem_outerIndex_iff.mpr ⟨hqQ, hq2, ha, hcop⟩
+    refine Set.mem_iUnion.mpr ⟨(q, a), Set.mem_iUnion.mpr ⟨hidx, ?_⟩⟩
+    unfold outerAnnulus
+    refine ⟨?_, hrad⟩
+    by_contra hle
+    exact hinner ⟨q, a, hq1, hq2, ha, hcop, le_of_not_gt hle⟩
+  · intro hmem
+    obtain ⟨p, hp⟩ := Set.mem_iUnion.mp hmem
+    obtain ⟨hidx, ht'⟩ := Set.mem_iUnion.mp hp
+    rw [mem_outerIndex_iff] at hidx
+    obtain ⟨hqQ, hqQ1, ha, hcop⟩ := hidx
+    unfold outerAnnulus at ht'
+    obtain ⟨hlow, hhigh⟩ := ht'
+    have hlogpos : 0 < Nat.log 2 (n + 2) := Nat.log_pos (by norm_num) (by omega)
+    have hQ0 : 0 < Qf n := by
+      unfold Qf
+      rw [pow_two]
+      exact Nat.mul_pos hlogpos hlogpos
+    have hq0 : 0 < p.1 := lt_trans hQ0 hqQ
+    have hq1 : 1 ≤ p.1 := Nat.succ_le_of_lt hq0
+    have hn0 : 0 < n := lt_of_lt_of_le (by norm_num : 0 < 2^63) hn
+    -- the three exclusion bounds
+    have hH0 : (0:ℝ) ≤ (Hf n:ℝ) := Nat.cast_nonneg _
+    have hQ0r : (0:ℝ) ≤ (Qf n:ℝ) := Nat.cast_nonneg _
+    have hQ1r : (0:ℝ) ≤ (Q1f n:ℝ) := Nat.cast_nonneg _
+    have hQH : (Qf n:ℝ) ≤ (Hf n:ℝ) := by
+      have hHf : (Hf n:ℝ) = 256 * (Q1f n:ℝ) * (Qf n:ℝ) := by rw [Hf]; push_cast; ring
+      have hone : 1 ≤ (Q1f n:ℝ) := by
+        exact_mod_cast le_trans (by norm_num : (1:ℕ) ≤ 4) (four_lt_Q1f n hn).le
+      rw [hHf]
+      nlinarith
+    have hqQ1r : p.1 ≤ (Q1f n:ℝ) := by exact_mod_cast hqQ1
+    -- arcs exclusion: radius Q/(q'n), q' ≤ Q
+    have hnotarcs : t ∉ arcsRegion n := by
+      intro hmem
+      unfold arcsRegion at hmem
+      obtain ⟨q', a', hq1', hq2', ha', hcop', hrad'⟩ := hmem
+      have hq0' : 0 < q' := Nat.lt_of_succ_le hq1'
+      have hB : (Hf n:ℝ)*(q':ℝ) + (Qf n:ℝ)*(p:ℕ×ℕ).1 < (n:ℝ) := by
+        have ht1 : (Hf n:ℝ)*(q':ℝ) ≤ (Hf n:ℝ)*(Qf n:ℝ) :=
+          mul_le_mul_of_nonneg_left (by exact_mod_cast hq2') hH0
+        have ht2 : (Qf n:ℝ)*(p:ℕ×ℕ).1 ≤ (Hf n:ℝ)*(Q1f n:ℝ) := by
+          calc (Qf n:ℝ)*(p:ℕ×ℕ).1 ≤ (Qf n:ℝ)*(Q1f n:ℝ) := mul_le_mul_of_nonneg_left hqQ1r hQ0r
+            _ ≤ (Hf n:ℝ)*(Q1f n:ℝ) := mul_le_mul_of_nonneg_right hQH hQ1r
+        have hadd := Hf_add_lt n hn
+        have hexp : (Hf n:ℝ)*((Qf n:ℝ)+(Q1f n:ℝ))
+            = (Hf n:ℝ)*(Qf n:ℝ) + (Hf n:ℝ)*(Q1f n:ℝ) := by ring
+        rw [hexp] at hadd
+        linarith
+      exact annulus_excludes n hn p.1 p.2 q' a' hq0 hqQ hqQ1 hcop hq0' hq1' hcop' t hhigh
+        (Qf n:ℝ) hrad' hB
+        (fun hqq _ => absurd (hqq ▸ hq2') (Nat.not_le.mpr hqQ))
+    -- lowWide exclusion: radius H/(q'n), q' ≤ Q
+    have hnotlow : t ∉ lowWideArcsRegion n := by
+      intro hmem
+      unfold lowWideArcsRegion at hmem
+      obtain ⟨q', a', hq1', hq2', ha', hcop', hrad'⟩ := hmem
+      have hq0' : 0 < q' := Nat.lt_of_succ_le hq1'
+      have hB : (Hf n:ℝ)*(q':ℝ) + (Hf n:ℝ)*(p:ℕ×ℕ).1 < (n:ℝ) := by
+        have ht1 : (Hf n:ℝ)*(q':ℝ) ≤ (Hf n:ℝ)*(Qf n:ℝ) :=
+          mul_le_mul_of_nonneg_left (by exact_mod_cast hq2') hH0
+        have ht2 : (Hf n:ℝ)*(p:ℕ×ℕ).1 ≤ (Hf n:ℝ)*(Q1f n:ℝ) :=
+          mul_le_mul_of_nonneg_left hqQ1r hH0
+        have hadd := Hf_add_lt n hn
+        have hexp : (Hf n:ℝ)*((Qf n:ℝ)+(Q1f n:ℝ))
+            = (Hf n:ℝ)*(Qf n:ℝ) + (Hf n:ℝ)*(Q1f n:ℝ) := by ring
+        rw [hexp] at hadd
+        linarith
+      exact annulus_excludes n hn p.1 p.2 q' a' hq0 hqQ hqQ1 hcop hq0' hq1' hcop' t hhigh
+        (Hf n:ℝ) hrad' hB
+        (fun hqq _ => absurd (hqq ▸ hq2') (Nat.not_le.mpr hqQ))
+    -- inner exclusion: radius Q n^{1/6}/(q'n), q' ≤ Q₁
+    have hnotinner : t ∉ innerRegion n := by
+      intro hmem
+      unfold innerRegion at hmem
+      obtain ⟨q', a', hq1', hq2', ha', hcop', hrad'⟩ := hmem
+      have hq0' : 0 < q' := Nat.lt_of_succ_le hq1'
+      have hB : (Hf n:ℝ)*(q':ℝ) + ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ))*(p:ℕ×ℕ).1 < (n:ℝ) := by
+        have ht1 : (Hf n:ℝ)*(q':ℝ) ≤ (Hf n:ℝ)*(Q1f n:ℝ) :=
+          mul_le_mul_of_nonneg_left (by exact_mod_cast hq2') hH0
+        have ht2 : ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ))*(p:ℕ×ℕ).1
+            ≤ (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)*(Q1f n:ℝ) :=
+          mul_le_mul_of_nonneg_left hqQ1r (mul_nonneg hQ0r
+            (Real.rpow_nonneg (Nat.cast_nonneg n) (1/6:ℝ)))
+        have hadd := Q1_Hf_Qf_sixth_lt n hn
+        have hexp : (Q1f n:ℝ)*((Hf n:ℝ) + (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ))
+            = (Hf n:ℝ)*(Q1f n:ℝ) + (Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)*(Q1f n:ℝ) := by ring
+        rw [hexp] at hadd
+        linarith
+      have hsamer : q' = p.1 → a' = p.2 → False := by
+        intro hqq haa
+        rw [hqq, haa] at hrad'
+        exact absurd hrad' (not_le.mpr hlow)
+      exact annulus_excludes n hn p.1 p.2 q' a' hq0 hqQ hqQ1 hcop hq0' hq1' hcop' t hhigh
+        ((Qf n:ℝ)*(n:ℝ)^(1/6:ℝ)) hrad' hB hsamer
+    refine ⟨?_, hnotinner⟩
+    rw [remainder_eq]
+    exact ⟨⟨p.1, p.2, hq1, hqQ1, ha, hcop, hhigh⟩, fun hmem => hmem.elim hnotarcs hnotlow⟩
+
+end OuterUnion
+
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
   sorry
