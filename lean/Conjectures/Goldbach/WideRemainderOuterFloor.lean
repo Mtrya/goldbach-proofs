@@ -3431,5 +3431,263 @@ lemma annulus_sum_bridge (q : ℕ) (j : ℤ) (h H : ℝ) (hq : 0 < q) (hh : 0 �
 
 end AnnulusBridge
 
+/-! ### Outer geometry: annulus radii and unit-interval containment -/
+
+section OuterGeometry
+
+/-- The target annulus for modulus `q` and residue `a`: inner radius `Q·n^{1/6}/(qn)`,
+outer radius `H/(qn)`.  These are exactly the pieces of `remainder ∖ inner` at large `n`. -/
+noncomputable def outerAnnulus (n q a : ℕ) : Set ℝ :=
+  {t : ℝ | (Qf n : ℝ) * (n:ℝ)^(1/6:ℝ) / ((q:ℝ) * (n:ℝ)) < |t - (a:ℝ)/(q:ℝ)|
+    ∧ |t - (a:ℝ)/(q:ℝ)| ≤ (Hf n : ℝ) / ((q:ℝ) * (n:ℝ))}
+
+/-- The gap `x^{1/6}/4 − log₂ x`, positive on `[2^63, ∞)`. -/
+private noncomputable def logSixthGap (x : ℝ) : ℝ := x^(1/6:ℝ)/4 - Real.log x / Real.log 2
+
+/-- Logarithm grows slower than the sixth root on the far tail: `log₂ x ≤ x^{1/6}/4`
+for `x ≥ 2^63` (the true ratio at `2^63` is about `23`, so the slack is comfortable). -/
+lemma log2_le_quarter_sixth_root (x : ℝ) (hx : (2:ℝ)^(63:ℝ) ≤ x) :
+    Real.log x / Real.log 2 ≤ x^(1/6:ℝ)/4 := by
+  have hlog2pos : 0 < Real.log 2 := Real.log_pos (by norm_num : (1:ℝ) < 2)
+  have hlog2half : 1/2 ≤ Real.log 2 := by
+    have h := Real.log_lt_sub_one_of_pos (by norm_num : 0 < (1/2:ℝ)) (by norm_num : (1/2:ℝ) ≠ 1)
+    rw [show (1/2:ℝ) = (2:ℝ)⁻¹ from by norm_num, Real.log_inv] at h
+    linarith
+  have hpow2 : ((2:ℝ)^(63:ℝ))^(1/6:ℝ) = (2:ℝ)^((21:ℝ)/2) := by
+    have h := Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) 63 (1/6:ℝ)
+    rw [show (63:ℝ)*(1/6:ℝ) = (21:ℝ)/2 from by norm_num] at h
+    exact h.symm
+  have h10 : (2:ℝ)^(10:ℝ) = 1024 := by norm_num
+  have hgt1024 : (1024:ℝ) < ((2:ℝ)^(63:ℝ))^(1/6:ℝ) := by
+    rw [hpow2, ← h10, Real.rpow_lt_rpow_left_iff (by norm_num : (1:ℝ) < 2)]
+    norm_num
+  have hg' : ∀ y : ℝ, 0 < y → HasDerivAt logSixthGap
+      ((1:ℝ)/24 * y^((1/6:ℝ) - 1) - 1/(y * Real.log 2)) y := by
+    intro y hy0
+    have hp1 : HasDerivAt (fun z : ℝ => z^(1/6:ℝ)) ((1/6:ℝ) * y^((1/6:ℝ) - 1)) y :=
+      Real.hasDerivAt_rpow_const (Or.inl hy0.ne')
+    have hp2 := hp1.div_const 4
+    have hl : HasDerivAt Real.log (1/y) y := by
+      simpa using Real.hasDerivAt_log hy0.ne'
+    have hp3 : HasDerivAt (fun z : ℝ => Real.log z / Real.log 2) ((1/y) / Real.log 2) y :=
+      hl.div_const (Real.log 2)
+    have hslope : (1:ℝ)/24 * y^((1/6:ℝ) - 1) - 1/(y * Real.log 2)
+        = (1/6:ℝ) * y^((1/6:ℝ) - 1) / 4 - (1/y) / Real.log 2 := by
+      field_simp
+      ring
+    rw [hslope]
+    exact hp2.sub hp3
+  have hg'pos : ∀ y : ℝ, (2:ℝ)^(63:ℝ) < y → 0 < deriv logSixthGap y := by
+    intro y hy
+    have hy0 : 0 < y := lt_trans (Real.rpow_pos_of_pos (by norm_num : 0 < (2:ℝ)) 63) hy
+    have hrw : (1:ℝ)/24 * (y^(1/6:ℝ)/y) = y^(1/6:ℝ)/((24:ℝ)*y) := by
+      field_simp
+    have hmain : (24:ℝ) < y^(1/6:ℝ) * Real.log 2 := by
+      have hL : (1024:ℝ) < y^(1/6:ℝ) := by
+        have h1 : ((2:ℝ)^(63:ℝ))^(1/6:ℝ) ≤ y^(1/6:ℝ) :=
+          Real.rpow_le_rpow (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) 63) (le_of_lt hy)
+            (by norm_num)
+        linarith [hgt1024, h1]
+      have h2 : (24:ℝ) ≤ (1024:ℝ) * (1/2:ℝ) := by norm_num
+      have h3 : (1024:ℝ) * (1/2:ℝ) ≤ (1024:ℝ) * Real.log 2 :=
+        mul_le_mul_of_nonneg_left hlog2half (by norm_num)
+      have h4 := mul_lt_mul_of_pos_right hL hlog2pos
+      linarith
+    rw [(hg' y hy0).deriv, Real.rpow_sub hy0 (1/6:ℝ) (1:ℝ), Real.rpow_one, sub_pos, hrw]
+    have hd1 : 0 < y * Real.log 2 := mul_pos hy0 hlog2pos
+    have hd2 : 0 < (24:ℝ) * y := mul_pos (by norm_num : 0 < (24:ℝ)) hy0
+    rw [div_lt_div_iff₀ hd1 hd2]
+    have h5 := mul_lt_mul_of_pos_right hmain hy0
+    ring_nf at h5 ⊢
+    exact h5
+  have hmono : StrictMonoOn logSixthGap (Set.Ici ((2:ℝ)^(63:ℝ))) := by
+    refine strictMonoOn_of_deriv_pos (convex_Ici _) ?_ ?_
+    · intro x hx
+      have hx0 : 0 < x := by
+        have h1 : (0:ℝ) < (2:ℝ)^(63:ℝ) := Real.rpow_pos_of_pos (by norm_num) 63
+        have h2 : (2:ℝ)^(63:ℝ) ≤ x := Set.mem_Ici.mp hx
+        linarith
+      exact ((hg' x hx0).differentiableAt).differentiableWithinAt.continuousWithinAt
+    · intro x hx
+      rw [interior_Ici] at hx
+      exact hg'pos x hx
+  have hg0 : 0 < logSixthGap ((2:ℝ)^(63:ℝ)) := by
+    have h3 : Real.log ((2:ℝ)^(63:ℝ)) = 63 * Real.log 2 :=
+      Real.log_rpow (by norm_num : 0 < (2:ℝ)) 63
+    have h7 : (63 * Real.log 2) / Real.log 2 = 63 := by field_simp
+    rw [logSixthGap, hpow2, h3, h7, sub_pos, lt_div_iff₀ (by norm_num : (0:ℝ) < 4)]
+    have hbig : (252:ℝ) < (2:ℝ)^((21:ℝ)/2) := by
+      have h8 := lt_of_lt_of_le hgt1024 (le_of_eq hpow2)
+      linarith
+    linarith
+  have hgx : 0 < logSixthGap x := by
+    by_cases heq : x = (2:ℝ)^(63:ℝ)
+    · rw [heq]; exact hg0
+    · have hlt : (2:ℝ)^(63:ℝ) < x := lt_of_le_of_ne hx (Ne.symm heq)
+      exact lt_trans hg0 (hmono (Set.mem_Ici.mpr (le_refl _)) (Set.mem_Ici.mpr hx) hlt)
+  rw [logSixthGap] at hgx
+  linarith
+
+/-- The outer half-width is tiny: `H(n) < n/2` for `n ≥ 2^63`.  This makes every outer
+annulus radius `H/(qn) < 1/q`, which is what pins the annuli inside `[0,1]`. -/
+lemma Hf_lt_half (n : ℕ) (hn : 2^63 ≤ n) : (Hf n : ℝ) < (n:ℝ)/2 := by
+  have hn2 : 2 ≤ n := le_trans (by norm_num : (2:ℕ) ≤ 2^63) hn
+  have hn0 : 0 < (n:ℝ) := by
+    have h : (0:ℕ) < n := lt_of_lt_of_le (by norm_num : (0:ℕ) < 2) hn2
+    exact_mod_cast h
+  have hn3 : 0 < (n:ℝ)^(2/3:ℝ) := Real.rpow_pos_of_pos hn0 _
+  have hQ1 : (Q1f n : ℝ) ≤ (n:ℝ)^(1/3:ℝ) :=
+    Nat.floor_le (Real.rpow_nonneg (Nat.cast_nonneg n) (1/3:ℝ))
+  have hlog : (Qf n : ℝ) ≤ ((n:ℝ)+2)^(1/3:ℝ)/16 := by
+    have h1 : (Qf n : ℝ) = ((Nat.log 2 (n+2) : ℕ) : ℝ)^2 := by rw [Qf]; push_cast; ring
+    have hlog2p : 0 < Real.log 2 := Real.log_pos (by norm_num : (1:ℝ) < 2)
+    have h2 : ((Nat.log 2 (n+2) : ℕ) : ℝ) ≤ Real.log ((n:ℝ)+2) / Real.log 2 := by
+      have h3 := Real.natLog_le_logb (n+2) 2
+      rw [← Real.log_div_log] at h3
+      push_cast at h3
+      exact h3
+    have h4 : Real.log ((n:ℝ)+2) / Real.log 2 ≤ ((n:ℝ)+2)^(1/6:ℝ)/4 := by
+      refine log2_le_quarter_sixth_root _ ?_
+      have hnat : (2:ℝ)^(63:ℝ) ≤ (n:ℝ) + 2 := by
+        have h1' : ((2^63 : ℕ) : ℝ) ≤ (n:ℝ) + 2 := by
+          exact_mod_cast (le_trans hn (Nat.le_add_right n 2))
+        have h2' : ((2^63 : ℕ) : ℝ) = (2:ℝ)^(63:ℝ) := by norm_num
+        rw [h2'] at h1'
+        exact h1'
+      exact hnat
+    have hL0 : 0 ≤ ((Nat.log 2 (n+2) : ℕ) : ℝ) := Nat.cast_nonneg _
+    have hb0 : 0 ≤ Real.log ((n:ℝ)+2) / Real.log 2 :=
+      div_nonneg (le_of_lt (Real.log_pos (by
+        have h2n : (2:ℝ) ≤ (n:ℝ) := by exact_mod_cast hn2
+        linarith))) hlog2p.le
+    have hb1 : 0 ≤ ((n:ℝ)+2)^(1/6:ℝ)/4 :=
+      div_nonneg (Real.rpow_nonneg (by linarith : 0 ≤ ((n:ℝ)+2)) (1/6:ℝ)) (by norm_num)
+    calc (Qf n : ℝ) = ((Nat.log 2 (n+2) : ℕ) : ℝ)^2 := h1
+      _ ≤ (Real.log ((n:ℝ)+2) / Real.log 2)^2 := sq_le_sq' (by linarith [hb0, hL0]) h2
+      _ ≤ (((n:ℝ)+2)^(1/6:ℝ)/4)^2 := sq_le_sq' (by linarith [hb1, hb0]) h4
+      _ = ((n:ℝ)+2)^(1/3:ℝ)/16 := by
+          have hpos : 0 < ((n:ℝ)+2) := by linarith
+          rw [div_pow, sq, ← Real.rpow_add hpos (1/6:ℝ) (1/6:ℝ),
+            show (1:ℝ)/6 + 1/6 = 1/3 from by norm_num]
+          norm_num
+  have hHf : (Hf n : ℝ) = 256 * (Q1f n : ℝ) * (Qf n : ℝ) := by rw [Hf]; push_cast; ring
+  have hnb : ((n:ℝ)+2)^(1/3:ℝ) ≤ 2*(n:ℝ)^(1/3:ℝ) := by
+    have h1 : ((n:ℝ)+2) ≤ 8*(n:ℝ) := by
+      have h : (2:ℝ) ≤ (n:ℝ) := by exact_mod_cast hn2
+      linarith
+    have h2 : ((n:ℝ)+2)^(1/3:ℝ) ≤ ((8:ℝ)*(n:ℝ))^(1/3:ℝ) :=
+      Real.rpow_le_rpow (by linarith) h1 (by norm_num)
+    have h3 : ((8:ℝ)*(n:ℝ))^(1/3:ℝ) = (8:ℝ)^(1/3:ℝ) * (n:ℝ)^(1/3:ℝ) :=
+      Real.mul_rpow (by norm_num : 0 ≤ (8:ℝ)) (by linarith : 0 ≤ (n:ℝ))
+    have h4 : (8:ℝ)^(1/3:ℝ) = 2 := by
+      have h5 : (2:ℝ)^(3*(1/3:ℝ)) = ((2:ℝ)^(3:ℝ))^(1/3:ℝ) :=
+        Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) 3 (1/3:ℝ)
+      rw [show (3:ℝ)*(1/3:ℝ) = 1 from by norm_num, Real.rpow_one] at h5
+      rw [show (8:ℝ) = (2:ℝ)^(3:ℝ) from by norm_num]
+      exact h5.symm
+    rw [h3, h4] at h2
+    exact h2
+  have hstep : (64:ℝ) * (n:ℝ)^(2/3:ℝ) < (n:ℝ) := by
+    have hn3 : 0 < (n:ℝ)^(2/3:ℝ) := Real.rpow_pos_of_pos hn0 _
+    have ha : (2097152:ℝ) ≤ (n:ℝ)^(1/3:ℝ) := by
+      have h21 : ((2:ℝ)^(63:ℝ))^(1/3:ℝ) = (2:ℝ)^(21:ℝ) := by
+        have h := Real.rpow_mul (by norm_num : 0 ≤ (2:ℝ)) 63 (1/3:ℝ)
+        rw [show (63:ℝ)*(1/3:ℝ) = 21 from by norm_num] at h
+        exact h.symm
+      have h22 : (2:ℝ)^(21:ℝ) = 2097152 := by norm_num
+      calc (2097152:ℝ) = (2:ℝ)^(21:ℝ) := by rw [h22]
+        _ = ((2:ℝ)^(63:ℝ))^(1/3:ℝ) := by rw [h21]
+        _ ≤ (n:ℝ)^(1/3:ℝ) := Real.rpow_le_rpow
+              (Real.rpow_nonneg (by norm_num : 0 ≤ (2:ℝ)) 63)
+              (by
+                have h63 := Real.rpow_natCast 2 63
+                rw [show ((63:ℕ):ℝ) = (63:ℝ) from by norm_num] at h63
+                rw [h63]
+                exact_mod_cast hn) (by norm_num)
+    have h64 : (64:ℝ) < (n:ℝ)^(1/3:ℝ) := lt_of_lt_of_le (by norm_num : (64:ℝ) < 2097152) ha
+    calc (64:ℝ) * (n:ℝ)^(2/3:ℝ) < (n:ℝ)^(1/3:ℝ) * (n:ℝ)^(2/3:ℝ) := by
+          exact mul_lt_mul_of_pos_right h64 hn3
+      _ = (n:ℝ)^((1/3:ℝ) + (2/3:ℝ)) := (Real.rpow_add hn0 (1/3:ℝ) (2/3:ℝ)).symm
+      _ = (n:ℝ) := by rw [show (1:ℝ)/3 + 2/3 = 1 from by norm_num, Real.rpow_one]
+  have hexp2 : (n:ℝ)^(2/3:ℝ) = (n:ℝ)^(1/3:ℝ) * (n:ℝ)^(1/3:ℝ) := by
+    rw [← Real.rpow_add hn0 (1/3:ℝ) (1/3:ℝ)]
+    congr 1
+    norm_num
+  calc (Hf n : ℝ) = 256 * (Q1f n : ℝ) * (Qf n : ℝ) := hHf
+    _ ≤ 256 * (n:ℝ)^(1/3:ℝ) * (((n:ℝ)+2)^(1/3:ℝ)/16) := by
+        refine mul_le_mul (mul_le_mul_of_nonneg_left hQ1 (by norm_num : 0 ≤ (256:ℝ))) hlog
+          (Nat.cast_nonneg (Qf n))
+          (mul_nonneg (by norm_num : 0 ≤ (256:ℝ))
+            (Real.rpow_nonneg (by linarith : 0 ≤ (↑n:ℝ)) (1/3:ℝ)))
+    _ = 16 * (n:ℝ)^(1/3:ℝ) * ((n:ℝ)+2)^(1/3:ℝ) := by ring
+    _ ≤ 16 * (n:ℝ)^(1/3:ℝ) * (2*(n:ℝ)^(1/3:ℝ)) := by
+        exact mul_le_mul_of_nonneg_left hnb
+          (mul_nonneg (by norm_num) (Real.rpow_nonneg (Nat.cast_nonneg n) (1/3:ℝ)))
+    _ = 32 * (n:ℝ)^(2/3:ℝ) := by rw [hexp2]; ring
+    _ < (n:ℝ)/2 := by linarith [hstep]
+
+/-- Both arms of an outer annulus lie in `[0,1]`: the centre `a/q` is a positive unit
+fraction (`1 ≤ a ≤ q−1`, since `q > Q ≥ 1` and `a ⊥ q`) and the half-width `H/(qn)`
+is below `1/q`.  Hence `[0,1]`-restricted integrals equal unrestricted arm integrals. -/
+lemma outerAnnulus_subset_Icc (n q a : ℕ) (hn : 2^63 ≤ n) (hq : Qf n < q)
+    (hcop : Nat.Coprime a q) (haq : a ≤ q) : outerAnnulus n q a ⊆ Set.Icc (0:ℝ) 1 := by
+  have hqpos : 0 < q := lt_of_le_of_lt (Nat.zero_le _) hq
+  have hlogpos : (Nat.log 2 (n+2) : ℕ) ≠ 0 := by
+    intro h0
+    rw [Nat.log_eq_zero_iff] at h0
+    rcases h0 with h3 | h3 <;> omega
+  have hq1 : q ≠ 1 := fun heq => by
+    rw [heq] at hq
+    have h0 : (Nat.log 2 (n+2) : ℕ) = 0 := sq_eq_zero_iff.mp (Nat.lt_one_iff.mp hq)
+    exact hlogpos h0
+  have ha1 : 1 ≤ a := by
+    rcases Nat.eq_zero_or_pos a with h | h
+    · subst h
+      rw [Nat.coprime_zero_left] at hcop
+      exact absurd hcop hq1
+    · exact h
+  have halt : a < q := by
+    rcases lt_or_eq_of_le haq with h | h
+    · exact h
+    · subst h
+      rw [Nat.coprime_self] at hcop
+      exact absurd hcop hq1
+  intro t ht
+  obtain ⟨h1, h2⟩ := ht
+  have hn2 : 2 ≤ n := le_trans (by norm_num : (2:ℕ) ≤ 2^63) hn
+  have hn0 : 0 < (n:ℝ) := by
+    have h : (0:ℕ) < n := lt_of_lt_of_le (by norm_num : (0:ℕ) < 2) hn2
+    exact_mod_cast h
+  have hq0 : 0 < (q:ℝ) := by exact_mod_cast hqpos
+  have hHn : (Hf n : ℝ) < (n:ℝ) := lt_trans (Hf_lt_half n hn) (by linarith)
+  have hHq : (Hf n : ℝ) / ((q:ℝ) * (n:ℝ)) < 1/(q:ℝ) := by
+    rw [div_lt_div_iff₀ (mul_pos hq0 hn0) hq0]
+    have hmul := mul_lt_mul_of_pos_right hHn hq0
+    ring_nf at hmul ⊢
+    exact hmul
+  have hab : -((Hf n : ℝ)/((q:ℝ)*(n:ℝ))) ≤ t - (a:ℝ)/(q:ℝ)
+      ∧ t - (a:ℝ)/(q:ℝ) ≤ (Hf n : ℝ)/((q:ℝ)*(n:ℝ)) := abs_le.mp h2
+  have h5 : (1:ℝ)/(q:ℝ) ≤ (a:ℝ)/(q:ℝ) := by
+    rw [div_le_div_iff_of_pos_right hq0]
+    exact_mod_cast ha1
+  have hlow : 0 < t := by
+    have h4 : (a:ℝ)/(q:ℝ) - (Hf n : ℝ)/((q:ℝ)*(n:ℝ)) ≤ t := by linarith [hab.1]
+    calc (0:ℝ) < 1/(q:ℝ) - (Hf n : ℝ)/((q:ℝ)*(n:ℝ)) := by linarith [hHq]
+      _ ≤ (a:ℝ)/(q:ℝ) - (Hf n : ℝ)/((q:ℝ)*(n:ℝ)) := by linarith [h5]
+      _ ≤ t := h4
+  have hup : t ≤ 1 := by
+    have h4 : t ≤ (a:ℝ)/(q:ℝ) + (Hf n : ℝ)/((q:ℝ)*(n:ℝ)) := by linarith [hab.2]
+    have h6 : ((a:ℝ) + 1)/(q:ℝ) ≤ 1 := by
+      rw [div_le_one hq0]
+      exact_mod_cast (Nat.succ_le_of_lt halt)
+    have hlt : t < 1 := calc t ≤ (a:ℝ)/(q:ℝ) + (Hf n : ℝ)/((q:ℝ)*(n:ℝ)) := h4
+      _ < (a:ℝ)/(q:ℝ) + 1/(q:ℝ) := by linarith [hHq]
+      _ = ((a:ℝ) + 1)/(q:ℝ) := by ring
+      _ ≤ 1 := h6
+    exact le_of_lt hlt
+  exact ⟨le_of_lt hlow, hup⟩
+
+end OuterGeometry
+
 theorem WideRemainderOuterFloor : let w := fun k : ℕ => if Nat.Prime k then Real.log (k:ℝ) else 0; let E := fun x : ℝ => Complex.exp (((2*Real.pi*x:ℝ):ℂ)*Complex.I); let S := fun (n : ℕ) (u : ℕ → ℝ) (t : ℝ) => Finset.sum (Finset.range (n+1)) (fun k => (u k:ℂ)*E ((k:ℝ)*t)); let Q := fun n : ℕ => (Nat.log 2 (n+2))^2; let arcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n:ℝ)/((q:ℝ)*(n:ℝ))}; let f := fun (n : ℕ) (t : ℝ) => (S n w t)^2*E (-(n:ℝ)*t); let Q₁ := fun n : ℕ => ⌊(n:ℝ)^(1/3:ℝ)⌋₊; let H := fun n : ℕ => 256 * Q₁ n * Q n; let wideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowWideArcs := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (H n:ℝ)/((q:ℝ)*(n:ℝ))}; let lowPart := fun n : ℕ => lowWideArcs n \ arcs n; let remainder := fun n : ℕ => (wideArcs n \ arcs n) \ lowPart n; let inner := fun n : ℕ => {t : ℝ | ∃ q a : ℕ, 1≤q ∧ q≤Q₁ n ∧ a≤q ∧ Nat.Coprime a q ∧ |t-(a:ℝ)/(q:ℝ)| ≤ (Q n : ℝ) * (n : ℝ)^(1/6 : ℝ) / ((q:ℝ)*(n:ℝ))}; let J := fun (n : ℕ) (A : Set ℝ) => (intervalIntegral (fun t => A.indicator (f n) t) (0:ℝ) 1 MeasureTheory.volume).re; let floor := fun (A : ℕ → Set ℝ) => ∀ e : ℝ, 0 < e → ∃ N : ℕ, ∀ n : ℕ, N ≤ n → Even n → -(e * (n:ℝ)) ≤ J n (A n); floor (fun n => remainder n \ inner n) := by
   sorry
